@@ -35,8 +35,24 @@ ALLOWED_ATTACHMENT_TYPES = {
 # Hours between automatic backups while the app is running.
 BACKUP_INTERVAL_HOURS = float(os.environ.get("DISCHARGE_BACKUP_INTERVAL_HOURS", "24"))
 
+# Printed on every discharge card, before the signature. Editable in
+# data/clinic.json; sourced from WHO/IMCI general danger signs and
+# standard safety-netting advice.
+DEFAULT_WARNING_SIGNS = (
+    "Warning signs — seek medical care immediately if you notice any of these: "
+    "high fever not controlled by medicine or lasting more than three days, "
+    "difficulty or fast breathing, chest indrawing or bluish lips, persistent "
+    "vomiting or inability to keep fluids or food down, signs of dehydration "
+    "such as little or no urine, dry mouth, sunken eyes or no tears, excessive "
+    "drowsiness, confusion or difficulty waking, fits or convulsions, severe or "
+    "worsening chest, abdominal or head pain, any bleeding, black stools or "
+    "blood in vomit or urine, neck stiffness or a rash with high fever, or "
+    "being unable to eat or drink (in young children, unable to feed). "
+    "Return on your follow-up date, or sooner if any of these appear."
+)
+
 _DEFAULT_CLINIC = {
-    "clinic_name": "MNH Nursing Home",
+    "clinic_name": "Mahavir Nursing Home",
     "clinic_subtitle": "",
     "address_line1": "",
     "address_line2": "",
@@ -44,6 +60,7 @@ _DEFAULT_CLINIC = {
     "doctor_name": "",
     "doctor_qualifications": "",
     "registration_number": "",
+    "warning_signs": DEFAULT_WARNING_SIGNS,
 }
 
 

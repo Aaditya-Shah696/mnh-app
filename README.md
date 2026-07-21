@@ -1,9 +1,10 @@
 # MNH Discharge Records
 
-A local, offline-first discharge record system for a small nursing home.
-It replaces the copy-paste-from-old-Word-files workflow: as a diagnosis is
-typed, the closest past cases appear alongside the form and their medicines
-can be copied into the current record with one click.
+A local, offline-first discharge record system for Mahavir Nursing Home
+(Dr. Mitesh Shah, Pediatrician). It replaces the copy-paste-from-old-Word-files
+workflow: as a diagnosis is typed, the closest past cases appear alongside
+the form and their medicines can be copied into the current record with
+one click.
 
 Everything runs on one machine. No cloud, no external services, no LLM
 APIs; the similar-case search uses a small local sentence-embedding model
@@ -11,17 +12,27 @@ APIs; the similar-case search uses a small local sentence-embedding model
 
 ## Features
 
-- Full discharge card form: patient details, admission, vitals, diagnosis,
-  history, investigations, course, treatment lines, discharge medicines,
-  advice, follow-up, attachments (lab reports, scans).
-- Patient registry with search by name or phone; repeat visits reuse the
-  same patient.
+- Full discharge card form: patient details, admission (ward is a fixed
+  choice of Room 1 (Single) / Room 3 (Single) / Twin / Economy; weight
+  and height), examination findings (vitals, six yes/no signs, per-system
+  notes), diagnosis, history, course, treatment lines, discharge
+  medicines, advice, follow-up, investigations and attachments (lab
+  reports, scans) grouped together.
+- Patient registry with name search, plus per-patient profiles: chronic
+  conditions and past medical history live on the profile, prefill every
+  new discharge, and edits made while writing a discharge flow back to
+  the profile. Each profile lists all past visits.
 - Similar past cases panel: as you type, past records are ranked by
   semantic similarity of diagnosis + complaints + history + treatment.
   "Copy medicines" pulls a past record's discharge medicines (and advice,
-  if empty) into the current form.
-- Print-ready A4 discharge card PDF with the clinic letterhead; draft
-  records get a DRAFT watermark.
+  if empty) into the current form. It can be hidden and shown again from
+  the editor toolbar; the choice is remembered.
+- Medicine dose, route, and frequency fields are all editable dropdown
+  presets (650 mg, PO, OD, 1-0-1, ...) - pick one or type anything.
+- Print-ready A4 discharge card PDF that leaves blank space at the top
+  for pre-printed letterhead stationery, prints all six examination
+  signs as Yes/No, and always ends with a warning-signs paragraph
+  (editable in `data/clinic.json`). Draft records get a DRAFT watermark.
 - Automatic daily encrypted backups (AES-256 zip) of the database,
   attachments, and clinic config, with retention of the newest 30.
 - Draft / Final workflow, Ctrl+S to save, unsaved-changes warning.
@@ -48,12 +59,15 @@ user cache; after that everything works offline.
 Open http://localhost:8021 in a browser. API docs live at /docs.
 The server binds to localhost only; nothing is reachable from the network.
 
-## Clinic letterhead
+## Clinic details and warning signs
 
-Edit `data/clinic.json` (clinic name, address, phone, doctor name,
-qualifications, registration number). It feeds the app header and the
-PDF letterhead. No restart needed for the PDF; reload the page for the
-header.
+Edit `data/clinic.json` (clinic name, doctor name, qualifications,
+warning-signs text, ...). The clinic and doctor names feed the app
+header and the PDF signature; the printed card deliberately has **no
+letterhead** - it leaves blank space at the top for pre-printed
+stationery. `warning_signs` is the paragraph printed at the end of every
+card; edit it freely. No restart needed for the PDF; reload the page for
+the header.
 
 ## Backups and restore
 

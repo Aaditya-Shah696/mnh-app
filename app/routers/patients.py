@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -28,7 +28,7 @@ def create_patient(payload: schemas.PatientCreate, db: Session = Depends(get_db)
 
 @router.get("", response_model=list[schemas.PatientOut])
 def list_patients(
-    q: str | None = Query(default=None, description="Search by name or phone"),
+    q: str | None = Query(default=None, description="Search by name"),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
@@ -37,7 +37,7 @@ def list_patients(
         like = f"%{q.strip()}%"
         stmt = (
             select(models.Patient)
-            .where(or_(models.Patient.name.ilike(like), models.Patient.phone.ilike(like)))
+            .where(models.Patient.name.ilike(like))
             .order_by(models.Patient.name)
             .limit(limit)
         )

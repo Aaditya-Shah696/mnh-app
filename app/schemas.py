@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 SEXES = {"M", "F", "Other"}
 RECORD_STATUSES = {"draft", "final"}
 TREATMENT_CATEGORIES = {"hospital", "discharge"}
+SIGN_VALUES = {"yes", "no"}
+SIGN_FIELDS = ("pallor", "icterus", "rash", "cyanosis", "meningeal_signs", "dehydration_signs")
 
 
 # ---------- Patients ----------
@@ -16,8 +18,9 @@ class PatientBase(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     sex: str | None = None
     dob: date | None = None
-    phone: str | None = Field(default=None, max_length=30)
     address: str | None = None
+    chronic_conditions: str | None = None
+    past_history: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -103,16 +106,16 @@ class AttachmentOut(BaseModel):
 
 class RecordFields(BaseModel):
     ipd_number: str | None = Field(default=None, max_length=50)
-    ward_bed: str | None = Field(default=None, max_length=50)
+    ward: str | None = Field(default=None, max_length=50)
     admission_date: datetime | None = None
     discharge_date: datetime | None = None
     age_at_admission: str | None = Field(default=None, max_length=20)
     weight: str | None = Field(default=None, max_length=20)
+    height: str | None = Field(default=None, max_length=20)
 
     diagnosis: str | None = None
     presenting_complaints: str | None = None
     history: str | None = None
-    allergies: str | None = Field(default=None, max_length=300)
     examination_findings: str | None = None
 
     temperature: str | None = Field(default=None, max_length=20)
@@ -121,9 +124,21 @@ class RecordFields(BaseModel):
     resp_rate: str | None = Field(default=None, max_length=20)
     spo2: str | None = Field(default=None, max_length=20)
 
+    pallor: str | None = None
+    icterus: str | None = None
+    rash: str | None = None
+    cyanosis: str | None = None
+    meningeal_signs: str | None = None
+    dehydration_signs: str | None = None
+
+    throat_findings: str | None = None
+    respiratory_system: str | None = None
+    cvs_system: str | None = None
+    abdominal_exam: str | None = None
+    cns_system: str | None = None
+
     investigations: str | None = None
     course_in_hospital: str | None = None
-    condition_at_discharge: str | None = None
 
     advice: str | None = None
     follow_up_date: date | None = None
@@ -137,6 +152,15 @@ class RecordFields(BaseModel):
     def _check_status(cls, v: str) -> str:
         if v not in RECORD_STATUSES:
             raise ValueError(f"status must be one of {sorted(RECORD_STATUSES)}")
+        return v
+
+    @field_validator(*SIGN_FIELDS)
+    @classmethod
+    def _check_sign(cls, v: str | None) -> str | None:
+        if v in (None, ""):
+            return None
+        if v not in SIGN_VALUES:
+            raise ValueError(f"sign must be one of {sorted(SIGN_VALUES)} or null")
         return v
 
 

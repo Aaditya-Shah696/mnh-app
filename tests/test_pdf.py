@@ -29,6 +29,42 @@ def test_pdf_generation(client, patient):
     client.delete(f"/api/records/{rid}")
 
 
+def test_pdf_exam_block_and_ward(client, patient):
+    rid = client.post("/api/records", json=make_record_payload(
+        patient["id"], pallor="yes",
+    )).json()["id"]
+    text = _pdf_text(client.get(f"/api/records/{rid}/pdf").content)
+    assert "WARD" in text and "T/1" in text
+    # All six signs print as pertinent negatives; ticked ones as Yes
+    for label in ("PALLOR", "ICTERUS", "RASH", "CYANOSIS", "MENINGEAL", "DEHYDRATION"):
+        assert label in text, label
+    assert "Yes" in text and "No" in text
+    assert "Throat findings:" in text
+    assert "General examination:" in text
+    client.delete(f"/api/records/{rid}")
+
+
+def test_pdf_warning_signs_always_printed(client, patient):
+    rid = client.post("/api/records", json=make_record_payload(
+        patient["id"], status="draft",
+    )).json()["id"]
+    text = _pdf_text(client.get(f"/api/records/{rid}/pdf").content)
+    assert "Warning signs" in text
+    assert "seek medical care immediately" in text
+    assert "sooner if any of these appear" in text
+    client.delete(f"/api/records/{rid}")
+
+
+def test_pdf_letterhead_phone_allergies_gone(client, patient):
+    rid = client.post("/api/records", json=make_record_payload(patient["id"])).json()["id"]
+    text = _pdf_text(client.get(f"/api/records/{rid}/pdf").content)
+    assert "Mahavir Nursing Home" not in text  # letterhead replaced by blank space
+    assert "PHONE" not in text
+    assert "ALLERGIES" not in text
+    assert "WARD / BED" not in text
+    client.delete(f"/api/records/{rid}")
+
+
 def test_draft_watermark(client, patient):
     payload = make_record_payload(patient["id"], status="draft")
     rid = client.post("/api/records", json=payload).json()["id"]

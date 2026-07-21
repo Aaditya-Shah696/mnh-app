@@ -45,6 +45,39 @@ def test_invalid_status_rejected(client, patient):
     assert client.post("/api/records", json=payload).status_code == 422
 
 
+def test_exam_fields_round_trip(client, patient):
+    payload = make_record_payload(
+        patient["id"], pallor="yes", meningeal_signs=None,
+        throat_findings="Tonsillar exudate", cns_system="Neck stiffness absent",
+    )
+    rid = client.post("/api/records", json=payload).json()["id"]
+    got = client.get(f"/api/records/{rid}").json()
+    assert got["pallor"] == "yes"
+    assert got["meningeal_signs"] is None
+    assert got["dehydration_signs"] == "yes"
+    assert got["throat_findings"] == "Tonsillar exudate"
+    assert got["respiratory_system"] == "Clear, equal air entry"
+    assert got["cvs_system"] == "S1 S2 normal"
+    assert got["abdominal_exam"] == "Soft, mild diffuse tenderness"
+    assert got["cns_system"] == "Neck stiffness absent"
+    client.delete(f"/api/records/{rid}")
+
+
+def test_invalid_sign_value_rejected(client, patient):
+    for bad in ("maybe", "Y", "true"):
+        payload = make_record_payload(patient["id"], pallor=bad)
+        assert client.post("/api/records", json=payload).status_code == 422, bad
+
+
+def test_ward_renamed_no_ward_bed(client, patient):
+    rid = client.post("/api/records", json=make_record_payload(patient["id"])).json()["id"]
+    got = client.get(f"/api/records/{rid}").json()
+    assert got["ward"] == "T/1"
+    assert "ward_bed" not in got
+    assert "allergies" not in got
+    client.delete(f"/api/records/{rid}")
+
+
 def test_delete_cascades_treatment_items(client, patient):
     created = client.post("/api/records", json=make_record_payload(patient["id"]))
     rid = created.json()["id"]

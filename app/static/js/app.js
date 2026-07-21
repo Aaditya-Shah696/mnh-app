@@ -110,29 +110,47 @@ async function api(path, options) {
 const state = {
   recordId: null,       // saved record id, null = unsaved new record
   patient: null,        // locked patient object, null = creating a new patient
+  profilePatient: null, // patient shown on the profile view
   attachments: [],
   dirty: false,
   saving: false,
   matchAvailable: true, // set false when /api/match reports the model is down
   lastMatchKey: "",
   matchRequestSeq: 0,    // guards against out-of-order responses overwriting newer ones
+  matchPanelCollapsed: localStorage.getItem("mnh:matchPanelCollapsed") === "1",
 };
 
 const SCALAR_FIELDS = [
-  "ipd_number", "ward_bed", "age_at_admission", "weight",
-  "diagnosis", "presenting_complaints", "history", "allergies",
+  "ipd_number", "ward", "age_at_admission", "weight", "height",
+  "diagnosis", "presenting_complaints", "history",
   "examination_findings", "temperature", "pulse", "bp", "resp_rate",
-  "spo2", "investigations", "course_in_hospital", "condition_at_discharge",
+  "spo2", "throat_findings", "respiratory_system", "cvs_system",
+  "abdominal_exam", "cns_system", "investigations", "course_in_hospital",
   "advice", "follow_up_notes", "doctor_name",
 ];
 const DATE_FIELDS = ["admission_date", "discharge_date", "follow_up_date"];
+// Checkbox signs: ticked saves "yes", unticked saves "no".
+const SIGN_FIELDS = [
+  "pallor", "icterus", "rash", "cyanosis", "meningeal_signs", "dehydration_signs",
+];
+// Patient-level fields shown in the editor; written back to the profile on save.
+const PATIENT_PERSISTENT_FIELDS = ["chronic_conditions", "past_history"];
 
 /* ---------- Routing ---------- */
 
+const VIEWS = ["view-home", "view-editor", "view-patients", "view-patient"];
+
+function showView(id) {
+  for (const view of VIEWS) $(view).classList.toggle("hidden", view !== id);
+}
+
 function route() {
   const hash = location.hash.replace(/^#\/?/, "");
-  if (hash === "record/new") showEditor(null);
-  else if (/^record\/\d+$/.test(hash)) showEditor(Number(hash.split("/")[1]));
+  if (hash === "record/new") showEditor(null, null);
+  else if (/^record\/new\/\d+$/.test(hash)) showEditor(null, Number(hash.split("/")[2]));
+  else if (/^record\/\d+$/.test(hash)) showEditor(Number(hash.split("/")[1]), null);
+  else if (hash === "patients") showPatients();
+  else if (/^patient\/\d+$/.test(hash)) showPatientProfile(Number(hash.split("/")[1]));
   else showHome();
 }
 
@@ -144,8 +162,7 @@ function navigate(hash) {
 /* ---------- Home view ---------- */
 
 async function showHome() {
-  $("view-editor").classList.add("hidden");
-  $("view-home").classList.remove("hidden");
+  showView("view-home");
   loadBackupStatus();
   await loadRecordList($("home-search").value.trim());
 }
@@ -182,7 +199,7 @@ async function loadRecordList(query) {
   if (!records.length) {
     const title = query ? "No records match “" + query + "”" : "No discharge records yet";
     const hint = query
-      ? "Check the spelling, or search by phone number."
+      ? "Check the spelling of the patient's name."
       : "Use the New discharge button above to create the first one.";
     list.replaceChildren(el("div", { class: "empty-state" },
       el("div", { class: "e-title", text: title }),
@@ -196,10 +213,136 @@ async function loadRecordList(query) {
     },
       el("span", { class: "r-name", text: r.patient_name }),
       el("span", { class: "r-dx", text: r.diagnosis || "No diagnosis recorded" }),
-      el("span", { class: "chip " + (r.status === "final" ? "chip-final" : "chip-draft"), text: r.status === "final" ? "Final" : "Draft" }),
+      r.status === "draft" ? el("span", { class: "chip chip-draft", text: "Draft" }) : null,
       el("span", { class: "r-date", text: fmtDate(r.discharge_date || r.admission_date || r.updated_at) }),
     )
   ));
+}
+
+/* ---------- Patients list + profile ---------- */
+
+async function showPatients() {
+  showView("view-patients");
+  await loadPatientList($("patients-search").value.trim());
+}
+
+async function loadPatientList(query) {
+  const list = $("patients-list");
+  list.replaceChildren(
+    ...Array.from({ length: 4 }, () => el("div", { class: "skeleton-row" }))
+  );
+  let patients;
+  try {
+    const params = query ? "?q=" + encodeURIComponent(query) : "";
+    patients = await api("/api/patients" + params);
+  } catch (err) {
+    list.replaceChildren(el("div", { class: "empty-state" },
+      el("div", { class: "e-title", text: "Could not load patients" }),
+      el("div", { text: err.message })));
+    return;
+  }
+  if (!patients.length) {
+    const title = query ? "No patients match “" + query + "”" : "No patients yet";
+    const hint = query
+      ? "Check the spelling of the patient's name."
+      : "Patients are created with their first discharge record.";
+    list.replaceChildren(el("div", { class: "empty-state" },
+      el("div", { class: "e-title", text: title }),
+      el("div", { text: hint })));
+    return;
+  }
+  list.replaceChildren(...patients.map((p) =>
+    el("button", {
+      class: "record-row", type: "button",
+      onclick: () => navigate("#/patient/" + p.id),
+    },
+      el("span", { class: "r-name", text: p.name }),
+      el("span", {
+        class: "r-dx",
+        text: [p.sex, p.dob ? "b. " + fmtDate(p.dob) : "", p.chronic_conditions]
+          .filter(Boolean).join(" · ") || "No details on file",
+      }),
+      el("span", { class: "r-date", text: fmtDate(p.updated_at) }),
+    )
+  ));
+}
+
+function demographicItem(label, value) {
+  return el("div", {},
+    el("div", { class: "pm-label", text: label }),
+    el("div", { class: "pm-value", text: value || "—" }),
+  );
+}
+
+async function showPatientProfile(patientId) {
+  showView("view-patient");
+  $("patient-title").textContent = "Patient";
+  $("patient-save-status").textContent = "";
+  let patient, records;
+  try {
+    [patient, records] = await Promise.all([
+      api("/api/patients/" + patientId),
+      api("/api/patients/" + patientId + "/records"),
+    ]);
+  } catch (err) {
+    toast("Could not open patient: " + err.message, true);
+    navigate("#/patients");
+    return;
+  }
+  state.profilePatient = patient;
+  $("patient-title").textContent = patient.name;
+  $("patient-demographics").replaceChildren(
+    demographicItem("Sex", patient.sex),
+    demographicItem("Date of birth", patient.dob ? fmtDate(patient.dob) : ""),
+    demographicItem("Address", patient.address),
+    demographicItem("On file since", fmtDate(patient.created_at)),
+  );
+  $("pp-chronic_conditions").value = patient.chronic_conditions || "";
+  $("pp-past_history").value = patient.past_history || "";
+
+  const visits = $("patient-visits");
+  if (!records.length) {
+    visits.replaceChildren(el("div", { class: "muted", text: "No discharge records yet." }));
+    return;
+  }
+  visits.replaceChildren(...records.map((r) =>
+    el("button", {
+      class: "record-row", type: "button",
+      onclick: () => navigate("#/record/" + r.id),
+    },
+      el("span", { class: "r-name", text: fmtDate(r.discharge_date || r.admission_date || r.updated_at) }),
+      el("span", { class: "r-dx", text: r.diagnosis || "No diagnosis recorded" }),
+      r.status === "draft" ? el("span", { class: "chip chip-draft", text: "Draft" }) : null,
+    )
+  ));
+}
+
+async function savePatientProfile() {
+  const patient = state.profilePatient;
+  if (!patient) return;
+  $("btn-save-patient").disabled = true;
+  $("patient-save-status").textContent = "Saving…";
+  try {
+    const updated = await api("/api/patients/" + patient.id, {
+      method: "PUT",
+      json: {
+        name: patient.name,
+        sex: patient.sex,
+        dob: patient.dob,
+        address: patient.address,
+        chronic_conditions: $("pp-chronic_conditions").value.trim() || null,
+        past_history: $("pp-past_history").value.trim() || null,
+      },
+    });
+    state.profilePatient = updated;
+    $("patient-save-status").textContent = "Saved";
+    toast("Profile saved");
+  } catch (err) {
+    $("patient-save-status").textContent = "Not saved";
+    toast("Save failed: " + err.message, true);
+  } finally {
+    $("btn-save-patient").disabled = false;
+  }
 }
 
 /* ---------- Treatment tables ---------- */
@@ -224,10 +367,12 @@ function addTxRow(containerId, values) {
   const container = $(containerId);
   if (!container.querySelector(".tx-header-row")) container.append(txHeaderRow());
   const row = el("div", { class: "tx-row" });
+  const TX_PRESET_LISTS = { route: "route-presets", frequency: "freq-presets" };
   for (const [key, label] of TX_COLUMNS) {
     row.append(el("input", {
       type: "text", "data-tx": key, "aria-label": label,
       value: (values && values[key]) || "",
+      list: TX_PRESET_LISTS[key] || null,
       oninput: markDirty,
     }));
   }
@@ -268,14 +413,19 @@ function lockPatient(patient) {
   const bits = [];
   if (patient.sex) bits.push(patient.sex);
   if (patient.dob) bits.push("b. " + fmtDate(patient.dob));
-  if (patient.phone) bits.push(patient.phone);
   $("pl-meta").textContent = bits.join(", ") || "No details on file";
+  // Profile is the source of truth for the persistent fields.
+  for (const key of PATIENT_PERSISTENT_FIELDS) $("p-" + key).value = patient[key] || "";
   $("patient-locked").classList.remove("hidden");
   $("patient-editor").classList.add("hidden");
   hideSuggestions();
 }
 
 function unlockPatient() {
+  // Persistent fields belong to the patient being changed away from.
+  if (state.patient) {
+    for (const key of PATIENT_PERSISTENT_FIELDS) $("p-" + key).value = "";
+  }
   state.patient = null;
   $("patient-locked").classList.add("hidden");
   $("patient-editor").classList.remove("hidden");
@@ -301,7 +451,7 @@ const suggestPatients = debounce(async () => {
       el("span", { text: p.name }),
       el("span", {
         class: "ps-meta",
-        text: [p.sex, p.dob ? fmtDate(p.dob) : "", p.phone].filter(Boolean).join(", "),
+        text: [p.sex, p.dob ? fmtDate(p.dob) : ""].filter(Boolean).join(", "),
       }),
     )
   ));
@@ -325,8 +475,10 @@ function markDirty() {
 function clearForm() {
   for (const key of SCALAR_FIELDS) $("f-" + key).value = "";
   for (const key of DATE_FIELDS) $("f-" + key).value = "";
+  for (const key of SIGN_FIELDS) $("f-" + key).checked = false;
   $("f-status").value = "draft";
-  ["p-name", "p-dob", "p-phone", "p-address"].forEach((id) => { $(id).value = ""; });
+  ["p-name", "p-dob", "p-address", "p-chronic_conditions", "p-past_history"]
+    .forEach((id) => { $(id).value = ""; });
   $("p-sex").value = "";
   fillTxTable("tx-hospital", []);
   fillTxTable("tx-discharge", []);
@@ -342,9 +494,8 @@ function clearForm() {
   $("p-name").classList.remove("input-invalid");
 }
 
-async function showEditor(recordId) {
-  $("view-home").classList.add("hidden");
-  $("view-editor").classList.remove("hidden");
+async function showEditor(recordId, patientId) {
+  showView("view-editor");
   clearForm();
   state.recordId = recordId;
   state.dirty = false;
@@ -354,6 +505,16 @@ async function showEditor(recordId) {
     $("editor-title").textContent = "New discharge";
     $("editor-status-chip").replaceChildren();
     unlockPatient();
+    if (patientId) {
+      // "New discharge for this patient": lock and prefill from the profile.
+      try {
+        const patient = await api("/api/patients/" + patientId);
+        lockPatient(patient);
+        $("editor-title").textContent = "New discharge · " + patient.name;
+      } catch (err) {
+        toast("Could not load patient: " + err.message, true);
+      }
+    }
     state.dirty = false;
     setSaveStatus("");
     setSavedControlsEnabled(false);
@@ -373,6 +534,7 @@ async function showEditor(recordId) {
   $("editor-title").textContent = "Discharge · " + record.patient.name;
   lockPatient(record.patient);
   for (const key of SCALAR_FIELDS) $("f-" + key).value = record[key] || "";
+  for (const key of SIGN_FIELDS) $("f-" + key).checked = record[key] === "yes";
   $("f-admission_date").value = (record.admission_date || "").slice(0, 16);
   $("f-discharge_date").value = (record.discharge_date || "").slice(0, 16);
   $("f-follow_up_date").value = record.follow_up_date || "";
@@ -400,9 +562,9 @@ async function prefillDoctor() {
 }
 
 function updateStatusChip() {
-  const isFinal = $("f-status").value === "final";
+  const isDraft = $("f-status").value === "draft";
   $("editor-status-chip").replaceChildren(
-    el("span", { class: "chip " + (isFinal ? "chip-final" : "chip-draft"), text: isFinal ? "Final" : "Draft" })
+    ...(isDraft ? [el("span", { class: "chip chip-draft", text: "Draft" })] : [])
   );
 }
 
@@ -421,6 +583,9 @@ function collectRecordPayload() {
   }
   for (const key of DATE_FIELDS) {
     payload[key] = $("f-" + key).value || null;
+  }
+  for (const key of SIGN_FIELDS) {
+    payload[key] = $("f-" + key).checked ? "yes" : "no";
   }
   payload.status = $("f-status").value;
   payload.treatment_items = [
@@ -447,12 +612,35 @@ async function ensurePatient() {
       name,
       sex: $("p-sex").value || null,
       dob: $("p-dob").value || null,
-      phone: $("p-phone").value.trim() || null,
       address: $("p-address").value.trim() || null,
+      chronic_conditions: $("p-chronic_conditions").value.trim() || null,
+      past_history: $("p-past_history").value.trim() || null,
     },
   });
   lockPatient(patient);
   return patient;
+}
+
+async function syncPatientPersistentFields(patient) {
+  // Write chronic conditions / past history edits back to the profile so
+  // the next visit prefills the latest values.
+  const chronic = $("p-chronic_conditions").value.trim() || null;
+  const past = $("p-past_history").value.trim() || null;
+  if (chronic === (patient.chronic_conditions || null) &&
+      past === (patient.past_history || null)) return patient;
+  const updated = await api("/api/patients/" + patient.id, {
+    method: "PUT",
+    json: {
+      name: patient.name,
+      sex: patient.sex,
+      dob: patient.dob,
+      address: patient.address,
+      chronic_conditions: chronic,
+      past_history: past,
+    },
+  });
+  state.patient = updated;
+  return updated;
 }
 
 async function saveRecord() {
@@ -462,6 +650,7 @@ async function saveRecord() {
   setSaveStatus("Saving…");
   try {
     const patient = await ensurePatient();
+    await syncPatientPersistentFields(patient);
     const payload = collectRecordPayload();
     let record;
     if (state.recordId === null) {
@@ -557,8 +746,27 @@ function matchQueryText() {
 
 const scheduleMatch = debounce(runMatch, 500);
 
+function updateMatchToggleButton() {
+  $("btn-toggle-match").textContent =
+    state.matchPanelCollapsed ? "Show similar cases" : "Hide similar cases";
+}
+
+function toggleMatchPanel() {
+  state.matchPanelCollapsed = !state.matchPanelCollapsed;
+  localStorage.setItem("mnh:matchPanelCollapsed", state.matchPanelCollapsed ? "1" : "0");
+  updateMatchToggleButton();
+  if (state.matchPanelCollapsed) {
+    $("match-panel-wrap").classList.add("hidden");
+    $("editor-layout").classList.remove("has-panel");
+  } else {
+    state.lastMatchKey = ""; // force a re-fetch now that it's visible again
+    runMatch();
+  }
+}
+
 async function runMatch() {
   if (!state.matchAvailable) return;
+  if (state.matchPanelCollapsed) return;
   if ($("view-editor").classList.contains("hidden")) return;
   const text = matchQueryText();
   const wrap = $("match-panel-wrap");
@@ -661,6 +869,8 @@ function copyTreatment(record) {
 
 function init() {
   renderIcons();
+  updateMatchToggleButton();
+  $("btn-toggle-match").addEventListener("click", toggleMatchPanel);
 
   api("/api/clinic").then((clinic) => {
     if (clinic.clinic_name) $("clinic-name").textContent = clinic.clinic_name;
@@ -670,6 +880,8 @@ function init() {
   }).catch(() => { /* header falls back to defaults */ });
 
   $("btn-new-record").addEventListener("click", () => navigate("#/record/new"));
+  $("nav-records").addEventListener("click", () => navigate("#/"));
+  $("nav-patients").addEventListener("click", () => navigate("#/patients"));
   $("btn-back").addEventListener("click", () => {
     navigate("#/");
   });
@@ -677,13 +889,21 @@ function init() {
   $("home-search").addEventListener("input", debounce(() => {
     loadRecordList($("home-search").value.trim());
   }, 300));
+  $("patients-search").addEventListener("input", debounce(() => {
+    loadPatientList($("patients-search").value.trim());
+  }, 300));
+  $("btn-patient-back").addEventListener("click", () => navigate("#/patients"));
+  $("btn-new-for-patient").addEventListener("click", () => {
+    if (state.profilePatient) navigate("#/record/new/" + state.profilePatient.id);
+  });
+  $("btn-save-patient").addEventListener("click", savePatientProfile);
 
   $("btn-add-hospital").addEventListener("click", () => { addTxRow("tx-hospital").querySelector("input").focus(); markDirty(); });
   $("btn-add-discharge").addEventListener("click", () => { addTxRow("tx-discharge").querySelector("input").focus(); markDirty(); });
 
   $("p-name").addEventListener("input", () => { suggestPatients(); markDirty(); });
   $("p-name").addEventListener("blur", () => setTimeout(hideSuggestions, 200));
-  ["p-sex", "p-dob", "p-phone", "p-address"].forEach((id) =>
+  ["p-sex", "p-dob", "p-address", "p-chronic_conditions", "p-past_history"].forEach((id) =>
     $(id).addEventListener("input", markDirty));
   $("btn-change-patient").addEventListener("click", unlockPatient);
 

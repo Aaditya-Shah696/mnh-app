@@ -60,7 +60,7 @@ def create_record(payload: schemas.RecordCreate, db: Session = Depends(get_db)):
 
 @router.get("", response_model=list[schemas.RecordSummary])
 def list_records(
-    q: str | None = Query(default=None, description="Filter by patient name or phone"),
+    q: str | None = Query(default=None, description="Filter by patient name"),
     limit: int = Query(default=30, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
@@ -71,11 +71,9 @@ def list_records(
         .limit(limit)
     )
     if q:
-        from sqlalchemy import or_
-
         like = f"%{q.strip()}%"
         stmt = stmt.join(models.DischargeRecord.patient).where(
-            or_(models.Patient.name.ilike(like), models.Patient.phone.ilike(like))
+            models.Patient.name.ilike(like)
         )
     return [
         schemas.RecordSummary(

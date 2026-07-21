@@ -1,6 +1,7 @@
 """Print-ready A4 discharge card PDF, mirroring the paper template:
-clinic letterhead, patient/admission grid, vitals, clinical sections,
-medicine tables, advice, follow-up, signature block."""
+blank top space (for pre-printed letterhead stationery), patient/
+admission grid, examination findings, clinical sections, medicine
+tables, advice, follow-up, warning signs, signature block."""
 from __future__ import annotations
 
 import io
@@ -22,14 +23,32 @@ from reportlab.platypus import (
 
 from .. import config, models
 
+# Blank space left at the top of the card for pre-printed letterhead
+# stationery (sized to the old letterhead block, plus a little).
+LETTERHEAD_SPACE = 25 * mm
+
+SIGNS = (
+    ("Pallor", "pallor"),
+    ("Icterus", "icterus"),
+    ("Rash", "rash"),
+    ("Cyanosis", "cyanosis"),
+    ("Meningeal signs", "meningeal_signs"),
+    ("Dehydration signs", "dehydration_signs"),
+)
+SYSTEMS = (
+    ("Throat findings", "throat_findings"),
+    ("Respiratory system", "respiratory_system"),
+    ("CVS system", "cvs_system"),
+    ("Abdominal examination", "abdominal_exam"),
+    ("CNS system", "cns_system"),
+)
+
 INK = colors.HexColor("#1c1c1f")
 MUTED = colors.HexColor("#55555c")
 LINE = colors.HexColor("#9a9a97")
 LIGHT_LINE = colors.HexColor("#c8c8c5")
 
 STYLES = {
-    "clinic": ParagraphStyle("clinic", fontName="Helvetica-Bold", fontSize=16, leading=19, textColor=INK),
-    "clinic_sub": ParagraphStyle("clinic_sub", fontName="Helvetica", fontSize=9, leading=12, textColor=MUTED),
     "doc_title": ParagraphStyle("doc_title", fontName="Helvetica-Bold", fontSize=12, leading=15,
                                 alignment=1, textColor=INK, spaceBefore=4),
     "label": ParagraphStyle("label", fontName="Helvetica-Bold", fontSize=8.5, leading=11, textColor=MUTED),
@@ -112,33 +131,8 @@ def render_discharge_pdf(record: models.DischargeRecord) -> bytes:
     width = doc.width
     story = []
 
-    # --- Letterhead
-    left = [Paragraph(_esc(clinic["clinic_name"]), STYLES["clinic"])]
-    sub_bits = [clinic.get("clinic_subtitle"), clinic.get("address_line1"),
-                clinic.get("address_line2"),
-                f"Phone: {clinic['phone']}" if clinic.get("phone") else ""]
-    for bit in sub_bits:
-        if bit:
-            left.append(Paragraph(_esc(bit), STYLES["clinic_sub"]))
-    right = []
-    if clinic.get("doctor_name"):
-        right.append(Paragraph(_esc(clinic["doctor_name"]),
-                               ParagraphStyle("dr", parent=STYLES["clinic_sub"],
-                                              fontName="Helvetica-Bold", fontSize=10,
-                                              alignment=2, textColor=INK)))
-    for bit in (clinic.get("doctor_qualifications"), clinic.get("registration_number")):
-        if bit:
-            right.append(Paragraph(_esc(bit),
-                                   ParagraphStyle("drs", parent=STYLES["clinic_sub"], alignment=2)))
-    head = Table([[left, right]], colWidths=[width * 0.62, width * 0.38])
-    head.setStyle(TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-    ]))
-    story.append(head)
-    story.append(Spacer(1, 3))
-    story.append(HRFlowable(width="100%", thickness=1.1, color=INK))
+    # --- Blank space for pre-printed letterhead stationery
+    story.append(Spacer(1, LETTERHEAD_SPACE))
     story.append(Paragraph("DISCHARGE CARD", STYLES["doc_title"]))
     story.append(Spacer(1, 6))
 
@@ -149,9 +143,8 @@ def render_discharge_pdf(record: models.DischargeRecord) -> bytes:
         [_kv("Patient name", patient.name), _kv("Sex / Age", sex_age), _kv("IPD no.", record.ipd_number)],
         [_kv("Admitted on", _fmt_dt(record.admission_date)),
          _kv("Discharged on", _fmt_dt(record.discharge_date)),
-         _kv("Ward / Bed", record.ward_bed)],
-        [_kv("Phone", patient.phone), _kv("Weight", record.weight),
-         _kv("Allergies", record.allergies)],
+         _kv("Ward", record.ward)],
+        [_kv("Weight", record.weight), _kv("Height", record.height), _kv("", "")],
         [_kv("Address", patient.address), _kv("", ""), _kv("", "")],
     ]
     info = Table(grid_rows, colWidths=[width / 3.0] * 3)
@@ -166,9 +159,9 @@ def render_discharge_pdf(record: models.DischargeRecord) -> bytes:
         ("SPAN", (0, 3), (-1, 3)),
     ]))
     story.append(info)
-    story.append(Spacer(1, 4))
 
-    # --- Vitals strip
+    # --- Examination findings: vitals, signs, systems, general exam
+    story.append(Paragraph("Examination findings", STYLES["section"]))
     vitals = [
         ("Temp", record.temperature), ("Pulse", record.pulse), ("BP", record.bp),
         ("Resp rate", record.resp_rate), ("SpO2", record.spo2),
@@ -185,16 +178,42 @@ def render_discharge_pdf(record: models.DischargeRecord) -> bytes:
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
     ]))
     story.append(vit)
+    story.append(Spacer(1, 4))
+
+    # All six signs print as pertinent negatives: ticked = Yes, else No.
+    sign_cells = [
+        _kv(label, "Yes" if getattr(record, attr) == "yes" else "No")
+        for label, attr in SIGNS
+    ]
+    signs = Table([sign_cells], colWidths=[width / 6.0] * 6)
+    signs.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOX", (0, 0), (-1, -1), 0.7, LINE),
+        ("INNERGRID", (0, 0), (-1, -1), 0.3, LIGHT_LINE),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(signs)
+    story.append(Spacer(1, 2))
+
+    exam_lines = [(label, getattr(record, attr)) for label, attr in SYSTEMS]
+    exam_lines.append(("General examination", record.examination_findings))
+    for label, text in exam_lines:
+        if text:
+            story.append(Paragraph(
+                f"<b>{label}:</b> {_esc(text)}".replace("\n", "<br/>"),
+                ParagraphStyle("exam_line", parent=STYLES["body"], spaceBefore=3),
+            ))
 
     # --- Clinical sections
     sections = [
         ("Diagnosis", record.diagnosis),
         ("Presenting complaints", record.presenting_complaints),
-        ("History and comorbidities", record.history),
-        ("Examination findings", record.examination_findings),
+        ("History", record.history),
         ("Investigations", record.investigations),
         ("Course in hospital", record.course_in_hospital),
-        ("Condition at discharge", record.condition_at_discharge),
     ]
     for title, text in sections:
         if text:
@@ -220,6 +239,28 @@ def render_discharge_pdf(record: models.DischargeRecord) -> bytes:
     if follow_up:
         story.append(Paragraph("Follow-up", STYLES["section"]))
         story.append(Paragraph(follow_up, STYLES["body"]))
+
+    # --- Warning signs (always printed; text editable in data/clinic.json)
+    warning_text = clinic.get("warning_signs") or config.DEFAULT_WARNING_SIGNS
+    head_part, sep, rest = warning_text.partition(":")
+    if sep:
+        warning_markup = f"<b>{_esc(head_part)}:</b>{_esc(rest)}"
+    else:
+        warning_markup = _esc(warning_text)
+    warning = Table(
+        [[Paragraph(warning_markup, ParagraphStyle(
+            "warning", parent=STYLES["body"], fontSize=9, leading=12))]],
+        colWidths=[width],
+    )
+    warning.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.7, LINE),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(Spacer(1, 10))
+    story.append(warning)
 
     # --- Signature (kept together so the line never separates from the name)
     doctor = record.doctor_name or clinic.get("doctor_name") or ""

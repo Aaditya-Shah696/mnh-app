@@ -1,7 +1,7 @@
 /* MNH Discharge Records - design system
    One accent (teal), zinc neutrals, one radius rule
    (controls 8px, surfaces 12px), system font stack so the app
-   works fully offline. Light and dark themes via tokens. */
+   works fully offline. Light theme only (permanent, no dark mode). */
 
 :root {
   --font-sans: ui-sans-serif, -apple-system, "Segoe UI Variable Text", "Segoe UI",
@@ -38,37 +38,6 @@
   --shadow-pop: 0 4px 16px rgb(28 28 31 / 0.10);
 
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #161618;
-    --surface: #1e1e21;
-    --surface-sunken: #19191b;
-    --border: #313135;
-    --border-strong: #47474d;
-    --text: #ececee;
-    --text-secondary: #b0b0b6;
-    --text-faint: #85858d;
-
-    --accent: #35b8ab;
-    --accent-hover: #4cc6ba;
-    --accent-active: #2aa196;
-    --accent-soft: #17322f;
-    --accent-soft-border: #24534e;
-    --accent-text-on: #0c1f1d;
-
-    --danger: #e0736a;
-    --danger-soft: #35211f;
-    --danger-soft-border: #59352f;
-
-    --warn-text: #d9a94e;
-    --warn-soft: #302818;
-    --warn-soft-border: #56462a;
-
-    --shadow-surface: 0 1px 2px rgb(0 0 0 / 0.35);
-    --shadow-pop: 0 4px 16px rgb(0 0 0 / 0.5);
-  }
 }
 
 * { box-sizing: border-box; }
@@ -121,6 +90,28 @@ html, body {
 }
 
 .appbar-spacer { flex: 1; }
+
+.appbar-nav { display: flex; gap: 2px; }
+
+@media (max-width: 560px) {
+  .appbar-brand .clinic-sub { display: none; }
+}
+
+/* ---------- Patient profile ---------- */
+
+.profile-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 16px;
+}
+
+.profile-meta .pm-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.profile-meta .pm-value { font-weight: 500; }
 
 /* ---------- Layout ---------- */
 
@@ -233,6 +224,50 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 .vitals-input { font-variant-numeric: tabular-nums; }
 
+/* Examination signs: checkbox pills (ticked = Yes, unticked = No) */
+
+.check-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-bottom: 4px;
+}
+
+.check-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  padding: 7px 12px;
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.check-pill:hover { background: var(--surface-sunken); }
+
+.check-pill:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+  color: var(--accent);
+}
+
+.check-pill input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.check-pill:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.check-pill input:focus-visible { outline: none; box-shadow: none; }
+
 /* ---------- Buttons ---------- */
 
 button {
@@ -289,6 +324,12 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 button svg, a svg { flex: none; }
 
+/* Icon spans populated by renderIcons() default to the body line-height
+   (1.5), which pads the SVG asymmetrically and throws off vertical
+   centering inside flex buttons. Zero it, matching what iconEl() already
+   sets inline for icons built the other way. */
+[data-icon] { line-height: 0; }
+
 /* ---------- Status chips ---------- */
 
 .chip {
@@ -305,12 +346,6 @@ button svg, a svg { flex: none; }
   color: var(--warn-text);
   background: var(--warn-soft);
   border-color: var(--warn-soft-border);
-}
-
-.chip-final {
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-color: var(--accent-soft-border);
 }
 
 /* ---------- Record list ---------- */
@@ -399,6 +434,35 @@ button svg, a svg { flex: none; }
   font-weight: 600;
   color: var(--text-faint);
   padding: 0 2px;
+}
+
+/* Route/frequency are text inputs with a `list` attribute (editable
+   dropdowns via <datalist>: pick a preset or type your own). Chromium
+   draws its own list-button indicator on top of these on :hover/:focus
+   regardless of `appearance: none`, stacking with our custom chevron -
+   every declaration below is needed to actually suppress it in every
+   state, not just the default one. */
+.tx-row input[list] {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%237d7d85' d='M4 6l4 4 4-4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px 10px;
+}
+
+.tx-row input[list]::-webkit-calendar-picker-indicator,
+.tx-row input[list]:hover::-webkit-calendar-picker-indicator,
+.tx-row input[list]:focus::-webkit-calendar-picker-indicator,
+.tx-row input[list]::-webkit-list-button,
+.tx-row input[list]:hover::-webkit-list-button,
+.tx-row input[list]:focus::-webkit-list-button {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 @media (max-width: 900px) {
