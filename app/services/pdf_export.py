@@ -24,8 +24,9 @@ from reportlab.platypus import (
 from .. import config, models
 
 # Blank space left at the top of the card for pre-printed letterhead
-# stationery (sized to the old letterhead block, plus a little).
-LETTERHEAD_SPACE = 25 * mm
+# stationery (sized to the old letterhead block, plus a little, plus 20%
+# extra breathing room for taller letterheads).
+LETTERHEAD_SPACE = 25 * mm * 1.2
 
 SIGNS = (
     ("Pallor", "pallor"),
@@ -55,6 +56,8 @@ STYLES = {
     "value": ParagraphStyle("value", fontName="Helvetica", fontSize=10, leading=13, textColor=INK),
     "section": ParagraphStyle("section", fontName="Helvetica-Bold", fontSize=10.5, leading=13,
                               textColor=INK, spaceBefore=8, spaceAfter=2),
+    "subhead": ParagraphStyle("subhead", fontName="Helvetica-Bold", fontSize=9, leading=12,
+                              textColor=MUTED, spaceBefore=6, spaceAfter=2),
     "body": ParagraphStyle("body", fontName="Helvetica", fontSize=10, leading=13.5, textColor=INK),
     "table_head": ParagraphStyle("table_head", fontName="Helvetica-Bold", fontSize=8.5, leading=11, textColor=MUTED),
     "table_cell": ParagraphStyle("table_cell", fontName="Helvetica", fontSize=9.5, leading=12, textColor=INK),
@@ -140,12 +143,11 @@ def render_discharge_pdf(record: models.DischargeRecord) -> bytes:
     patient = record.patient
     sex_age = " / ".join(x for x in (patient.sex, record.age_at_admission) if x)
     grid_rows = [
-        [_kv("Patient name", patient.name), _kv("Sex / Age", sex_age), _kv("IPD no.", record.ipd_number)],
+        [_kv("Patient name", patient.name), _kv("Sex / Age", sex_age), _kv("IPD number", record.ipd_number)],
         [_kv("Admitted on", _fmt_dt(record.admission_date)),
          _kv("Discharged on", _fmt_dt(record.discharge_date)),
          _kv("Ward", record.ward)],
         [_kv("Weight", record.weight), _kv("Height", record.height), _kv("", "")],
-        [_kv("Address", patient.address), _kv("", ""), _kv("", "")],
     ]
     info = Table(grid_rows, colWidths=[width / 3.0] * 3)
     info.setStyle(TableStyle([
@@ -156,11 +158,19 @@ def render_discharge_pdf(record: models.DischargeRecord) -> bytes:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
         ("LEFTPADDING", (0, 0), (-1, -1), 6),
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-        ("SPAN", (0, 3), (-1, 3)),
     ]))
     story.append(info)
 
-    # --- Examination findings: vitals, signs, systems, general exam
+    # --- Clinical narrative: diagnosis first, then history
+    if record.diagnosis:
+        story.append(Paragraph("Diagnosis", STYLES["section"]))
+        story.append(Paragraph(_esc(record.diagnosis).replace("\n", "<br/>"), STYLES["body"]))
+    if record.history:
+        story.append(Paragraph("History", STYLES["section"]))
+        story.append(Paragraph(_esc(record.history).replace("\n", "<br/>"), STYLES["body"]))
+
+    # --- Examination findings: vitals row, "Others" row (signs), then
+    # Systemic examination (open-ended per-system findings)
     story.append(Paragraph("Examination findings", STYLES["section"]))
     vitals = [
         ("Temp", record.temperature), ("Pulse", record.pulse), ("BP", record.bp),
@@ -178,9 +188,9 @@ def render_discharge_pdf(record: models.DischargeRecord) -> bytes:
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
     ]))
     story.append(vit)
-    story.append(Spacer(1, 4))
 
     # All six signs print as pertinent negatives: ticked = Yes, else No.
+    story.append(Paragraph("Others", STYLES["subhead"]))
     sign_cells = [
         _kv(label, "Yes" if getattr(record, attr) == "yes" else "No")
         for label, attr in SIGNS
@@ -196,22 +206,20 @@ def render_discharge_pdf(record: models.DischargeRecord) -> bytes:
         ("RIGHTPADDING", (0, 0), (-1, -1), 6),
     ]))
     story.append(signs)
-    story.append(Spacer(1, 2))
 
     exam_lines = [(label, getattr(record, attr)) for label, attr in SYSTEMS]
     exam_lines.append(("General examination", record.examination_findings))
-    for label, text in exam_lines:
-        if text:
-            story.append(Paragraph(
-                f"<b>{label}:</b> {_esc(text)}".replace("\n", "<br/>"),
-                ParagraphStyle("exam_line", parent=STYLES["body"], spaceBefore=3),
-            ))
+    if any(text for _, text in exam_lines):
+        story.append(Paragraph("Systemic examination", STYLES["subhead"]))
+        for label, text in exam_lines:
+            if text:
+                story.append(Paragraph(
+                    f"<b>{label}:</b> {_esc(text)}".replace("\n", "<br/>"),
+                    ParagraphStyle("exam_line", parent=STYLES["body"], spaceBefore=3),
+                ))
 
-    # --- Clinical sections
+    # --- Remaining clinical sections
     sections = [
-        ("Diagnosis", record.diagnosis),
-        ("Presenting complaints", record.presenting_complaints),
-        ("History", record.history),
         ("Investigations", record.investigations),
         ("Course in hospital", record.course_in_hospital),
     ]

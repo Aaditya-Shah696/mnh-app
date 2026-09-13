@@ -590,29 +590,6 @@ button svg, a svg { flex: none; }
 
 .match-item .m-actions button { font-size: 13px; padding: 5px 10px; }
 
-/* ---------- Attachments ---------- */
-
-.attachment-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 0;
-  border-top: 1px solid var(--border);
-}
-
-.attachment-row:first-of-type { border-top: 0; }
-
-.attachment-row .a-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.attachment-row .a-size { color: var(--text-faint); font-size: 13px; flex: none; }
-
 /* ---------- Editor toolbar ---------- */
 
 .editor-toolbar {

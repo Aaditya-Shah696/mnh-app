@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
-from .routers import attachments, backups, matches, patients, records
+from .routers import backups, matches, patients, records
 from .services import backup, embeddings
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -46,7 +46,6 @@ async def security_headers(request, call_next):
 
 app.include_router(patients.router)
 app.include_router(records.router)
-app.include_router(attachments.router)
 app.include_router(matches.router)
 app.include_router(backups.router)
 

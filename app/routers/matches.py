@@ -18,9 +18,9 @@ def match_records(query: schemas.MatchQuery, db: Session = Depends(get_db)):
     """Top-N most similar past discharge records for in-progress form text.
 
     Similarity is cosine distance between local sentence embeddings of
-    diagnosis + complaints + history + treatment text. If the embedding
-    model cannot load, this fails loudly with 503; there is no degraded
-    keyword-match fallback.
+    diagnosis + history + treatment text. If the embedding model cannot
+    load, this fails loudly with 503; there is no degraded keyword-match
+    fallback.
     """
     try:
         query_vec = embeddings.embed_text(query.text)

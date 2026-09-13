@@ -54,7 +54,7 @@ def embed_text(text: str) -> np.ndarray:
 
 
 def record_text(record: models.DischargeRecord) -> str:
-    """Canonical text a record is matched on: diagnosis, complaints, history, treatment."""
+    """Canonical text a record is matched on: diagnosis, history, treatment."""
     treatment = "; ".join(
         " ".join(
             part
@@ -65,7 +65,6 @@ def record_text(record: models.DischargeRecord) -> str:
     )
     parts = [
         record.diagnosis or "",
-        record.presenting_complaints or "",
         record.history or "",
         treatment,
     ]

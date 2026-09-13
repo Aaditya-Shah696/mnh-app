@@ -26,7 +26,6 @@ class Patient(Base):
     name: Mapped[str] = mapped_column(String(200), index=True)
     sex: Mapped[str | None] = mapped_column(String(10))
     dob: Mapped[date | None] = mapped_column(Date)
-    address: Mapped[str | None] = mapped_column(Text)
     # Persistent across visits: prefilled into each new discharge and
     # written back when the discharge is saved (profile is source of truth).
     chronic_conditions: Mapped[str | None] = mapped_column(Text)
@@ -58,7 +57,6 @@ class DischargeRecord(Base):
 
     # Clinical block
     diagnosis: Mapped[str | None] = mapped_column(Text)
-    presenting_complaints: Mapped[str | None] = mapped_column(Text)
     history: Mapped[str | None] = mapped_column(Text)
     examination_findings: Mapped[str | None] = mapped_column(Text)  # "General examination"
 
@@ -107,9 +105,6 @@ class DischargeRecord(Base):
     treatment_items: Mapped[list["TreatmentItem"]] = relationship(
         back_populates="record", cascade="all, delete-orphan", order_by="TreatmentItem.position"
     )
-    attachments: Mapped[list["Attachment"]] = relationship(
-        back_populates="record", cascade="all, delete-orphan"
-    )
 
 
 class TreatmentItem(Base):
@@ -129,19 +124,3 @@ class TreatmentItem(Base):
     position: Mapped[int] = mapped_column(Integer, default=0)
 
     record: Mapped[DischargeRecord] = relationship(back_populates="treatment_items")
-
-
-class Attachment(Base):
-    __tablename__ = "attachments"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    record_id: Mapped[int] = mapped_column(
-        ForeignKey("discharge_records.id", ondelete="CASCADE"), index=True
-    )
-    original_name: Mapped[str] = mapped_column(String(255))
-    stored_name: Mapped[str] = mapped_column(String(255), unique=True)
-    content_type: Mapped[str | None] = mapped_column(String(120))
-    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
-    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
-
-    record: Mapped[DischargeRecord] = relationship(back_populates="attachments")

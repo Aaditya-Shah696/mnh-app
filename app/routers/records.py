@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .. import config, models, schemas
+from .. import models, schemas
 from ..database import get_db
 from ..services import embeddings, pdf_export
 from .patients import get_patient_or_404
@@ -21,7 +21,6 @@ def get_record_or_404(record_id: int, db: Session) -> models.DischargeRecord:
         record_id,
         options=[
             selectinload(models.DischargeRecord.treatment_items),
-            selectinload(models.DischargeRecord.attachments),
             selectinload(models.DischargeRecord.patient),
         ],
     )
@@ -108,14 +107,8 @@ def update_record(record_id: int, payload: schemas.RecordUpdate, db: Session = D
 @router.delete("/{record_id}", status_code=204)
 def delete_record(record_id: int, db: Session = Depends(get_db)):
     record = get_record_or_404(record_id, db)
-    # Cascade deletes the Attachment rows, but never touches the files on
-    # disk, so remove those first - otherwise a deleted record's lab
-    # reports and scans silently stay behind in data/attachments.
-    attachment_paths = [config.ATTACHMENTS_DIR / a.stored_name for a in record.attachments]
     db.delete(record)
     db.commit()
-    for path in attachment_paths:
-        path.unlink(missing_ok=True)
 
 
 @router.get("/{record_id}/pdf")

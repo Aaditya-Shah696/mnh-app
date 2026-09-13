@@ -13,6 +13,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 DATA_DIR = Path(os.environ.get("DISCHARGE_DATA_DIR", PROJECT_ROOT / "data"))
+# The attachments feature was removed, but files uploaded before removal
+# still live here and are still swept into every encrypted backup.
 ATTACHMENTS_DIR = DATA_DIR / "attachments"
 BACKUPS_DIR = Path(os.environ.get("DISCHARGE_BACKUP_DIR", DATA_DIR / "backups"))
 DB_PATH = DATA_DIR / "discharge.db"
@@ -21,16 +23,6 @@ DATABASE_URL = os.environ.get("DISCHARGE_DATABASE_URL", f"sqlite:///{DB_PATH}")
 # Embedding model used for the similar-record recommender. Small, local,
 # downloaded once by fastembed and cached under ~/.cache.
 EMBEDDING_MODEL = os.environ.get("DISCHARGE_EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
-
-MAX_ATTACHMENT_MB = int(os.environ.get("DISCHARGE_MAX_ATTACHMENT_MB", "25"))
-ALLOWED_ATTACHMENT_TYPES = {
-    "application/pdf",
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-}
 
 # Hours between automatic backups while the app is running.
 BACKUP_INTERVAL_HOURS = float(os.environ.get("DISCHARGE_BACKUP_INTERVAL_HOURS", "24"))

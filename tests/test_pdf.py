@@ -35,12 +35,31 @@ def test_pdf_exam_block_and_ward(client, patient):
     )).json()["id"]
     text = _pdf_text(client.get(f"/api/records/{rid}/pdf").content)
     assert "WARD" in text and "T/1" in text
+    assert "IPD NUMBER" in text
     # All six signs print as pertinent negatives; ticked ones as Yes
     for label in ("PALLOR", "ICTERUS", "RASH", "CYANOSIS", "MENINGEAL", "DEHYDRATION"):
         assert label in text, label
     assert "Yes" in text and "No" in text
+    assert "Others" in text
+    assert "Systemic examination" in text
     assert "Throat findings:" in text
     assert "General examination:" in text
+    client.delete(f"/api/records/{rid}")
+
+
+def test_pdf_section_order(client, patient):
+    """Diagnosis, then history, then examination findings - in that order,
+    with the signs grouped under "Others" and the free-text exam fields
+    grouped under "Systemic examination"."""
+    rid = client.post("/api/records", json=make_record_payload(patient["id"])).json()["id"]
+    text = _pdf_text(client.get(f"/api/records/{rid}/pdf").content)
+    assert "Presenting complaints" not in text
+    diag_pos = text.index("Diagnosis")
+    history_pos = text.index("History")
+    exam_pos = text.index("Examination findings")
+    others_pos = text.index("Others")
+    systemic_pos = text.index("Systemic examination")
+    assert diag_pos < history_pos < exam_pos < others_pos < systemic_pos
     client.delete(f"/api/records/{rid}")
 
 

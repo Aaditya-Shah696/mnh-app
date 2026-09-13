@@ -4,7 +4,7 @@ from tests.conftest import make_record_payload
 
 def _seed(client, patient, diagnosis, complaints, drug):
     payload = make_record_payload(
-        patient["id"], diagnosis=diagnosis, presenting_complaints=complaints,
+        patient["id"], diagnosis=diagnosis, history=complaints,
     )
     payload["treatment_items"] = [
         {"category": "discharge", "drug": drug, "dose": "1", "route": "PO",

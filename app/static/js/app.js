@@ -9,10 +9,8 @@ const ICONS = {
   search: '<svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M229.66 218.34l-50.07-50.06a88.11 88.11 0 1 0-11.31 11.31l50.06 50.07a8 8 0 0 0 11.32-11.32ZM40 112a72 72 0 1 1 72 72a72.08 72.08 0 0 1-72-72Z"/></svg>',
   "arrow-left": '<svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8H59.31l58.35 58.34a8 8 0 0 1-11.32 11.32l-72-72a8 8 0 0 1 0-11.32l72-72a8 8 0 0 1 11.32 11.32L59.31 120H216a8 8 0 0 1 8 8Z"/></svg>',
   "file-pdf": '<svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 152a8 8 0 0 1-8 8h-24v16h16a8 8 0 0 1 0 16h-16v16a8 8 0 0 1-16 0v-56a8 8 0 0 1 8-8h32a8 8 0 0 1 8 8ZM92 172a28 28 0 0 1-28 28h-8v8a8 8 0 0 1-16 0v-56a8 8 0 0 1 8-8h16a28 28 0 0 1 28 28Zm-16 0a12 12 0 0 0-12-12h-8v24h8a12 12 0 0 0 12-12Zm88 8a36 36 0 0 1-36 36h-16a8 8 0 0 1-8-8v-56a8 8 0 0 1 8-8h16a36 36 0 0 1 36 36Zm-16 0a20 20 0 0 0-20-20h-8v40h8a20 20 0 0 0 20-20ZM40 112V40a16 16 0 0 1 16-16h96a8 8 0 0 1 5.66 2.34l56 56A8 8 0 0 1 216 88v24a8 8 0 0 1-16 0V96h-48a8 8 0 0 1-8-8V40H56v72a8 8 0 0 1-16 0ZM160 80h28.69L160 51.31Z"/></svg>',
-  paperclip: '<svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M209.66 122.34a8 8 0 0 1 0 11.32l-82.05 82a56 56 0 0 1-79.2-79.21L147.67 35.73a40 40 0 1 1 56.61 56.55L105 193a24 24 0 0 1-33.94-33.94l83.32-84.66a8 8 0 0 1 11.4 11.22l-83.31 84.66a8 8 0 0 0 11.32 11.32l99.32-100.66a24 24 0 1 0-33.89-34L59.76 147.68a40 40 0 1 0 56.53 56.62l82.06-82a8 8 0 0 1 11.31 0Z"/></svg>',
   trash: '<svg width="15" height="15" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16ZM96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Zm48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Z"/></svg>',
   copy: '<svg width="15" height="15" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216 32H88a8 8 0 0 0-8 8v40H40a8 8 0 0 0-8 8v128a8 8 0 0 0 8 8h128a8 8 0 0 0 8-8v-40h40a8 8 0 0 0 8-8V40a8 8 0 0 0-8-8Zm-56 176H48V96h112Zm48-48h-32V88a8 8 0 0 0-8-8H96V48h112Z"/></svg>',
-  download: '<svg width="15" height="15" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 152v56a16 16 0 0 1-16 16H48a16 16 0 0 1-16-16v-56a8 8 0 0 1 16 0v56h160v-56a8 8 0 0 1 16 0Zm-101.66 5.66a8 8 0 0 0 11.32 0l40-40a8 8 0 0 0-11.32-11.32L136 132.69V40a8 8 0 0 0-16 0v92.69l-26.34-26.35a8 8 0 0 0-11.32 11.32Z"/></svg>',
 };
 
 function renderIcons(root) {
@@ -70,12 +68,6 @@ function fmtDate(iso) {
   return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function fmtSize(bytes) {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-}
-
 /* ---------- API ---------- */
 
 async function api(path, options) {
@@ -111,7 +103,6 @@ const state = {
   recordId: null,       // saved record id, null = unsaved new record
   patient: null,        // locked patient object, null = creating a new patient
   profilePatient: null, // patient shown on the profile view
-  attachments: [],
   dirty: false,
   saving: false,
   matchAvailable: true, // set false when /api/match reports the model is down
@@ -122,7 +113,7 @@ const state = {
 
 const SCALAR_FIELDS = [
   "ipd_number", "ward", "age_at_admission", "weight", "height",
-  "diagnosis", "presenting_complaints", "history",
+  "diagnosis", "history",
   "examination_findings", "temperature", "pulse", "bp", "resp_rate",
   "spo2", "throat_findings", "respiratory_system", "cvs_system",
   "abdominal_exam", "cns_system", "investigations", "course_in_hospital",
@@ -133,8 +124,6 @@ const DATE_FIELDS = ["admission_date", "discharge_date", "follow_up_date"];
 const SIGN_FIELDS = [
   "pallor", "icterus", "rash", "cyanosis", "meningeal_signs", "dehydration_signs",
 ];
-// Patient-level fields shown in the editor; written back to the profile on save.
-const PATIENT_PERSISTENT_FIELDS = ["chronic_conditions", "past_history"];
 
 /* ---------- Routing ---------- */
 
@@ -294,7 +283,6 @@ async function showPatientProfile(patientId) {
   $("patient-demographics").replaceChildren(
     demographicItem("Sex", patient.sex),
     demographicItem("Date of birth", patient.dob ? fmtDate(patient.dob) : ""),
-    demographicItem("Address", patient.address),
     demographicItem("On file since", fmtDate(patient.created_at)),
   );
   $("pp-chronic_conditions").value = patient.chronic_conditions || "";
@@ -329,7 +317,6 @@ async function savePatientProfile() {
         name: patient.name,
         sex: patient.sex,
         dob: patient.dob,
-        address: patient.address,
         chronic_conditions: $("pp-chronic_conditions").value.trim() || null,
         past_history: $("pp-past_history").value.trim() || null,
       },
@@ -367,7 +354,9 @@ function addTxRow(containerId, values) {
   const container = $(containerId);
   if (!container.querySelector(".tx-header-row")) container.append(txHeaderRow());
   const row = el("div", { class: "tx-row" });
-  const TX_PRESET_LISTS = { route: "route-presets", frequency: "freq-presets" };
+  const TX_PRESET_LISTS = {
+    route: "route-presets", frequency: "freq-presets", instructions: "instructions-presets",
+  };
   for (const [key, label] of TX_COLUMNS) {
     row.append(el("input", {
       type: "text", "data-tx": key, "aria-label": label,
@@ -414,18 +403,12 @@ function lockPatient(patient) {
   if (patient.sex) bits.push(patient.sex);
   if (patient.dob) bits.push("b. " + fmtDate(patient.dob));
   $("pl-meta").textContent = bits.join(", ") || "No details on file";
-  // Profile is the source of truth for the persistent fields.
-  for (const key of PATIENT_PERSISTENT_FIELDS) $("p-" + key).value = patient[key] || "";
   $("patient-locked").classList.remove("hidden");
   $("patient-editor").classList.add("hidden");
   hideSuggestions();
 }
 
 function unlockPatient() {
-  // Persistent fields belong to the patient being changed away from.
-  if (state.patient) {
-    for (const key of PATIENT_PERSISTENT_FIELDS) $("p-" + key).value = "";
-  }
   state.patient = null;
   $("patient-locked").classList.add("hidden");
   $("patient-editor").classList.remove("hidden");
@@ -477,15 +460,12 @@ function clearForm() {
   for (const key of DATE_FIELDS) $("f-" + key).value = "";
   for (const key of SIGN_FIELDS) $("f-" + key).checked = false;
   $("f-status").value = "draft";
-  ["p-name", "p-dob", "p-address", "p-chronic_conditions", "p-past_history"]
-    .forEach((id) => { $(id).value = ""; });
+  ["p-name", "p-dob"].forEach((id) => { $(id).value = ""; });
   $("p-sex").value = "";
   fillTxTable("tx-hospital", []);
   fillTxTable("tx-discharge", []);
   addTxRow("tx-hospital");
   addTxRow("tx-discharge");
-  state.attachments = [];
-  renderAttachments();
   $("match-list").replaceChildren();
   $("match-panel-wrap").classList.add("hidden");
   $("editor-layout").classList.remove("has-panel");
@@ -543,8 +523,6 @@ async function showEditor(recordId, patientId) {
   fillTxTable("tx-discharge", record.treatment_items.filter((t) => t.category === "discharge"));
   if (!$("tx-hospital").children.length) addTxRow("tx-hospital");
   if (!$("tx-discharge").children.length) addTxRow("tx-discharge");
-  state.attachments = record.attachments;
-  renderAttachments();
   updateStatusChip();
   setSavedControlsEnabled(true);
   state.dirty = false;
@@ -571,8 +549,6 @@ function updateStatusChip() {
 function setSavedControlsEnabled(enabled) {
   $("btn-export-pdf").disabled = !enabled;
   $("btn-export-pdf").title = enabled ? "" : "Save the record first";
-  $("btn-add-attachment").disabled = !enabled;
-  $("btn-add-attachment").title = enabled ? "" : "Save the record first";
 }
 
 function collectRecordPayload() {
@@ -612,35 +588,10 @@ async function ensurePatient() {
       name,
       sex: $("p-sex").value || null,
       dob: $("p-dob").value || null,
-      address: $("p-address").value.trim() || null,
-      chronic_conditions: $("p-chronic_conditions").value.trim() || null,
-      past_history: $("p-past_history").value.trim() || null,
     },
   });
   lockPatient(patient);
   return patient;
-}
-
-async function syncPatientPersistentFields(patient) {
-  // Write chronic conditions / past history edits back to the profile so
-  // the next visit prefills the latest values.
-  const chronic = $("p-chronic_conditions").value.trim() || null;
-  const past = $("p-past_history").value.trim() || null;
-  if (chronic === (patient.chronic_conditions || null) &&
-      past === (patient.past_history || null)) return patient;
-  const updated = await api("/api/patients/" + patient.id, {
-    method: "PUT",
-    json: {
-      name: patient.name,
-      sex: patient.sex,
-      dob: patient.dob,
-      address: patient.address,
-      chronic_conditions: chronic,
-      past_history: past,
-    },
-  });
-  state.patient = updated;
-  return updated;
 }
 
 async function saveRecord() {
@@ -650,7 +601,6 @@ async function saveRecord() {
   setSaveStatus("Saving…");
   try {
     const patient = await ensurePatient();
-    await syncPatientPersistentFields(patient);
     const payload = collectRecordPayload();
     let record;
     if (state.recordId === null) {
@@ -676,59 +626,6 @@ async function saveRecord() {
   }
 }
 
-/* ---------- Attachments ---------- */
-
-function renderAttachments() {
-  const list = $("attachment-list");
-  if (!state.attachments.length) {
-    list.replaceChildren(el("div", { class: "muted", text: "No files attached." }));
-    return;
-  }
-  list.replaceChildren(...state.attachments.map((a) =>
-    el("div", { class: "attachment-row" },
-      iconEl("paperclip"),
-      el("span", { class: "a-name", text: a.original_name }),
-      el("span", { class: "a-size", text: fmtSize(a.size_bytes) }),
-      el("a", {
-        class: "btn-ghost btn-icon", href: "/api/attachments/" + a.id + "/download",
-        title: "Download", "aria-label": "Download " + a.original_name,
-      }, iconEl("download")),
-      el("button", {
-        class: "btn-danger-ghost btn-icon", type: "button",
-        title: "Delete", "aria-label": "Delete " + a.original_name,
-        onclick: () => deleteAttachment(a),
-      }, iconEl("trash")),
-    )
-  ));
-  renderIcons(list);
-}
-
-async function uploadAttachment(file) {
-  const form = new FormData();
-  form.append("file", file);
-  try {
-    const attachment = await api("/api/records/" + state.recordId + "/attachments", {
-      method: "POST", body: form,
-    });
-    state.attachments.push(attachment);
-    renderAttachments();
-    toast("Attached " + attachment.original_name);
-  } catch (err) {
-    toast("Upload failed: " + err.message, true);
-  }
-}
-
-async function deleteAttachment(attachment) {
-  if (!confirm("Delete attachment “" + attachment.original_name + "”?")) return;
-  try {
-    await api("/api/attachments/" + attachment.id, { method: "DELETE" });
-    state.attachments = state.attachments.filter((a) => a.id !== attachment.id);
-    renderAttachments();
-  } catch (err) {
-    toast("Delete failed: " + err.message, true);
-  }
-}
-
 /* ---------- Similar cases (match panel) ---------- */
 
 function matchQueryText() {
@@ -738,7 +635,6 @@ function matchQueryText() {
   ].map((t) => [t.drug, t.dose, t.frequency, t.duration].filter(Boolean).join(" ")).join("; ");
   return [
     $("f-diagnosis").value,
-    $("f-presenting_complaints").value,
     $("f-history").value,
     treatment,
   ].map((s) => s.trim()).filter(Boolean).join("\n");
@@ -903,19 +799,11 @@ function init() {
 
   $("p-name").addEventListener("input", () => { suggestPatients(); markDirty(); });
   $("p-name").addEventListener("blur", () => setTimeout(hideSuggestions, 200));
-  ["p-sex", "p-dob", "p-address", "p-chronic_conditions", "p-past_history"].forEach((id) =>
-    $(id).addEventListener("input", markDirty));
+  ["p-sex", "p-dob"].forEach((id) => $(id).addEventListener("input", markDirty));
   $("btn-change-patient").addEventListener("click", unlockPatient);
 
   $("record-form").addEventListener("input", markDirty);
   $("f-status").addEventListener("change", updateStatusChip);
-
-  $("btn-add-attachment").addEventListener("click", () => $("attachment-input").click());
-  $("attachment-input").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (file && state.recordId !== null) uploadAttachment(file);
-    e.target.value = "";
-  });
 
   $("btn-export-pdf").addEventListener("click", () => {
     if (state.recordId !== null) window.open("/api/records/" + state.recordId + "/pdf", "_blank");

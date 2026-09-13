@@ -4,7 +4,6 @@ from tests.conftest import make_record_payload
 def test_create_and_fetch_patient(client):
     resp = client.post("/api/patients", json={
         "name": "Anandi Bhagat", "sex": "F", "dob": "1975-01-30",
-        "address": "Somewhere",
         "chronic_conditions": "Type 2 diabetes",
         "past_history": "Cataract surgery 2020",
     })
@@ -15,6 +14,7 @@ def test_create_and_fetch_patient(client):
     assert got["chronic_conditions"] == "Type 2 diabetes"
     assert got["past_history"] == "Cataract surgery 2020"
     assert "phone" not in got
+    assert "address" not in got
 
 
 def test_blank_name_rejected(client):
@@ -60,7 +60,6 @@ def test_write_back_updates_profile(client, patient):
     profile (the UI PUTs the patient); later reads see the new values."""
     resp = client.put(f"/api/patients/{patient['id']}", json={
         "name": patient["name"], "sex": patient["sex"], "dob": patient["dob"],
-        "address": patient["address"],
         "chronic_conditions": "Hypothyroidism, new-onset hypertension",
         "past_history": patient["past_history"],
     })

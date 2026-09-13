@@ -12,7 +12,6 @@ from pathlib import Path
 # Must be set before the app modules are imported.
 _tmp = tempfile.mkdtemp(prefix="discharge_test_")
 os.environ["DISCHARGE_DATA_DIR"] = _tmp
-os.environ["DISCHARGE_MAX_ATTACHMENT_MB"] = "1"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -41,7 +40,6 @@ def client():
 def patient(client):
     resp = client.post("/api/patients", json={
         "name": "Test Patient", "sex": "F", "dob": "1990-05-01",
-        "address": "Test address",
         "chronic_conditions": "Hypothyroidism",
         "past_history": "LSCS 2018",
     })
@@ -60,8 +58,7 @@ def make_record_payload(patient_id: int, **overrides) -> dict:
         "weight": "60 kg",
         "height": "160 cm",
         "diagnosis": "Acute gastroenteritis with dehydration",
-        "presenting_complaints": "Loose stools and vomiting",
-        "history": "No comorbidities",
+        "history": "Loose stools and vomiting\n\nNo comorbidities",
         "examination_findings": "Conscious, oriented, mild dehydration",
         "temperature": "100.4 F",
         "pulse": "100/min",

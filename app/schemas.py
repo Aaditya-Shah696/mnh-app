@@ -18,7 +18,6 @@ class PatientBase(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     sex: str | None = None
     dob: date | None = None
-    address: str | None = None
     chronic_conditions: str | None = None
     past_history: str | None = None
 
@@ -90,18 +89,6 @@ class TreatmentItemOut(TreatmentItemIn):
     id: int
 
 
-# ---------- Attachments ----------
-
-class AttachmentOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    original_name: str
-    content_type: str | None
-    size_bytes: int
-    uploaded_at: datetime
-
-
 # ---------- Discharge records ----------
 
 class RecordFields(BaseModel):
@@ -114,7 +101,6 @@ class RecordFields(BaseModel):
     height: str | None = Field(default=None, max_length=20)
 
     diagnosis: str | None = None
-    presenting_complaints: str | None = None
     history: str | None = None
     examination_findings: str | None = None
 
@@ -193,7 +179,6 @@ class RecordOut(RecordFields):
     id: int
     patient_id: int
     treatment_items: list[TreatmentItemOut] = []
-    attachments: list[AttachmentOut] = []
     patient: PatientOut
     created_at: datetime
     updated_at: datetime
