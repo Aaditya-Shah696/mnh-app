@@ -1,11 +1,143 @@
 """Pydantic request/response schemas for the API."""
 from __future__ import annotations
 
+import json
+import re
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 SEXES = {"M", "F", "Other"}
+ROLES = {"admin", "staff"}
+USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{1,49}$")
+
+
+# ---------- Auth / users ----------
+
+class LoginIn(BaseModel):
+    username: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=1, max_length=256)
+
+    @field_validator("username")
+    @classmethod
+    def _norm_username(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    display_name: str
+    role: str
+    is_active: bool
+    failed_logins: int = 0
+    locked_until: datetime | None = None
+    last_login_at: datetime | None = None
+    password_changed_at: datetime | None = None
+    created_at: datetime
+
+
+class UserCreate(BaseModel):
+    username: str = Field(min_length=2, max_length=50)
+    display_name: str = Field(min_length=1, max_length=120)
+    role: str = "staff"
+    password: str = Field(min_length=1, max_length=256)
+
+    @field_validator("username")
+    @classmethod
+    def _check_username(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not USERNAME_RE.match(v):
+            raise ValueError(
+                "username must be 2-50 characters: lowercase letters, digits, . _ -"
+            )
+        return v
+
+    @field_validator("display_name")
+    @classmethod
+    def _strip_display(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("display_name cannot be blank")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def _check_role(cls, v: str) -> str:
+        if v not in ROLES:
+            raise ValueError(f"role must be one of {sorted(ROLES)}")
+        return v
+
+
+class UserUpdate(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=120)
+    role: str | None = None
+    is_active: bool | None = None
+    unlock: bool | None = None
+
+    @field_validator("role")
+    @classmethod
+    def _check_role(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        if v not in ROLES:
+            raise ValueError(f"role must be one of {sorted(ROLES)}")
+        return v
+
+    @field_validator("display_name")
+    @classmethod
+    def _strip_display(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            raise ValueError("display_name cannot be blank")
+        return v
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+class PasswordReset(BaseModel):
+    new_password: str = Field(min_length=1, max_length=256)
+
+
+# ---------- Audit ----------
+
+class AuditOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ts: datetime
+    user_id: int | None
+    username: str | None
+    action: str
+    entity_type: str | None
+    entity_id: int | None
+    ip: str | None
+    detail: dict[str, Any] | None = None
+
+    @field_validator("detail", mode="before")
+    @classmethod
+    def _parse_detail(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return {"raw": v}
+        return v
+
+
+class AuditPage(BaseModel):
+    items: list[AuditOut]
+    total: int
+    limit: int
+    offset: int
 RECORD_STATUSES = {"draft", "final"}
 TREATMENT_CATEGORIES = {"hospital", "discharge"}
 SIGN_VALUES = {"yes", "no"}
@@ -51,6 +183,7 @@ class PatientOut(PatientBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    deleted_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -170,6 +303,7 @@ class RecordSummary(BaseModel):
     admission_date: datetime | None
     discharge_date: datetime | None
     status: str
+    deleted_at: datetime | None = None
     updated_at: datetime
 
 
@@ -180,6 +314,9 @@ class RecordOut(RecordFields):
     patient_id: int
     treatment_items: list[TreatmentItemOut] = []
     patient: PatientOut
+    deleted_at: datetime | None = None
+    created_by: int | None = None
+    updated_by: int | None = None
     created_at: datetime
     updated_at: datetime
 

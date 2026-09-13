@@ -3,6 +3,10 @@
 The embedding model is the REAL local fastembed model (cached on disk
 after first download). Per project policy there is no mock fallback:
 if the model cannot load, embedding-dependent tests fail loudly.
+
+Authentication is real too: fixtures log in through POST /api/auth/login
+and carry the session cookie. The TestClient base URL is https so the
+Secure cookie is sent back, exactly as a browser would.
 """
 import os
 import sys
@@ -12,27 +16,76 @@ from pathlib import Path
 # Must be set before the app modules are imported.
 _tmp = tempfile.mkdtemp(prefix="discharge_test_")
 os.environ["DISCHARGE_DATA_DIR"] = _tmp
+os.environ.setdefault("DISCHARGE_PUBLIC_ORIGIN", "https://testserver")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import config  # noqa: E402
-from app.database import Base, engine  # noqa: E402
+from app import auth, config, models  # noqa: E402
+from app.database import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
+
+ADMIN = {"username": "admin", "password": "admin-password-123", "display_name": "Dr. Test Admin"}
+STAFF = {"username": "staff", "password": "staff-password-123", "display_name": "Reception"}
+
+
+def _ensure_user(db, spec, role):
+    user = db.query(models.User).filter_by(username=spec["username"]).first()
+    if user is None:
+        user = models.User(
+            username=spec["username"], display_name=spec["display_name"], role=role,
+            password_hash=auth.hash_password(spec["password"]), is_active=True,
+        )
+        db.add(user)
+    else:
+        user.password_hash = auth.hash_password(spec["password"])
+        user.role, user.is_active = role, True
+        auth.unlock_user(user)
+    db.commit()
+    return user.id
 
 
 @pytest.fixture(scope="session", autouse=True)
 def _database():
     config.ensure_dirs()
     Base.metadata.create_all(engine)
+    db = SessionLocal()
+    try:
+        _ensure_user(db, ADMIN, "admin")
+        _ensure_user(db, STAFF, "staff")
+    finally:
+        db.close()
     yield
+
+
+def login(client: TestClient, spec) -> dict:
+    resp = client.post("/api/auth/login", json={
+        "username": spec["username"], "password": spec["password"],
+    })
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+@pytest.fixture()
+def anon_client():
+    with TestClient(app, base_url="https://testserver") as c:
+        yield c
 
 
 @pytest.fixture()
 def client():
-    with TestClient(app) as c:
+    """Logged in as admin (the role that can do everything)."""
+    with TestClient(app, base_url="https://testserver") as c:
+        login(c, ADMIN)
+        yield c
+
+
+@pytest.fixture()
+def staff_client():
+    with TestClient(app, base_url="https://testserver") as c:
+        login(c, STAFF)
         yield c
 
 
@@ -45,6 +98,13 @@ def patient(client):
     })
     assert resp.status_code == 201
     return resp.json()
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_throttle():
+    auth.login_ip_throttle.reset()
+    yield
+    auth.login_ip_throttle.reset()
 
 
 def make_record_payload(patient_id: int, **overrides) -> dict:

@@ -1,0 +1,10 @@
+# One autodeploy check, run by mnh-autodeploy.timer. Deploys the
+# `production` branch when CI has moved it. Logs: journalctl -u mnh-autodeploy
+[Unit]
+Description=MNH Discharge Records autodeploy (pull production branch)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /srv/mnh/app/scripts/autodeploy.sh

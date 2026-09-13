@@ -702,3 +702,222 @@ button svg, a svg { flex: none; }
   height: 1px;
   background: var(--border);
 }
+
+/* ---------- Login ---------- */
+
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(28 28 31 / 0.38);
+  backdrop-filter: blur(3px);
+  overflow-y: auto;
+}
+
+.login-card {
+  margin: auto;            /* centred when it fits, scrollable when it does not */
+  width: min(400px, 100%);
+  padding: 28px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow-pop);
+}
+
+.login-brand { display: flex; flex-direction: column; margin-bottom: 4px; }
+.login-brand .clinic-name { font-size: 15px; font-weight: 650; color: var(--accent); }
+.login-brand .clinic-sub { font-size: 12.5px; color: var(--text-secondary); }
+
+.login-card h1 { margin: 0; font-size: 22px; font-weight: 700; }
+
+.login-resume {
+  font-size: 13px;
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-soft-border);
+  color: var(--warn-text);
+  border-radius: var(--radius-control);
+  padding: 8px 10px;
+  margin: 0;
+}
+
+.login-card input[type="password"] {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.login-submit { justify-content: center; margin-top: 6px; }
+
+/* ---------- App bar: user menu ---------- */
+
+.user-menu { display: flex; align-items: center; gap: 2px; }
+
+.user-chip { gap: 8px; max-width: 260px; }
+.user-chip #user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.chip-role {
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border-color: var(--border);
+  text-transform: capitalize;
+}
+.chip-role.is-admin {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+}
+
+@media (max-width: 760px) {
+  .logout-label { display: none; }
+  .user-chip .chip-role { display: none; }
+  .user-chip { max-width: 140px; }
+}
+
+/* ---------- Lists: tools, deleted rows ---------- */
+
+.list-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.record-row.is-deleted .r-name,
+.record-row.is-deleted .r-dx { color: var(--text-faint); text-decoration: line-through; }
+
+.chip-deleted {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger-soft-border);
+}
+
+.chip-ok {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-border);
+}
+
+.chip-muted {
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border-color: var(--border);
+}
+
+.record-row .r-actions { display: flex; gap: 6px; }
+.record-row .r-actions button { font-size: 13px; padding: 4px 10px; }
+
+/* ---------- Banners ---------- */
+
+.banner {
+  border-radius: var(--radius-control);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.banner-warn {
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-soft-border);
+  color: var(--warn-text);
+}
+
+/* ---------- Tables (users, audit) ---------- */
+
+.table-card { overflow: hidden; }
+.table-scroll { overflow-x: auto; }
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+table.data th, table.data td {
+  text-align: left;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+table.data th {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  border-top: 0;
+  background: var(--surface-sunken);
+}
+
+table.data td.wrap { white-space: normal; min-width: 220px; }
+table.data td.mono {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+table.data td .row-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+table.data td .row-actions button { font-size: 13px; padding: 4px 9px; }
+
+.table-footer { display: flex; justify-content: center; padding: 10px; }
+.table-footer:empty { display: none; }
+
+.audit-filters { align-items: end; }
+
+/* ---------- Dialogs ---------- */
+
+dialog.dialog {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-surface);
+  padding: 0;
+  width: min(440px, calc(100vw - 32px));
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+}
+
+dialog.dialog::backdrop {
+  background: rgb(28 28 31 / 0.38);
+  backdrop-filter: blur(2px);
+}
+
+dialog.dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px 20px;
+}
+
+dialog.dialog h2 { margin: 0; font-size: 18px; font-weight: 700; }
+
+dialog.dialog input[type="password"] {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.field-hint { font-size: 12.5px; color: var(--text-faint); }
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fdf6f5;
+}
+.btn-danger:hover:not(:disabled) { background: #9a2f27; }

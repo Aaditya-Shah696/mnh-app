@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy import (
+    Boolean, Date, DateTime, DDL, ForeignKey, Integer, LargeBinary, String, Text, event,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -17,6 +19,83 @@ from .database import Base
 def utcnow() -> datetime:
     # Naive UTC: SQLite round-trips naive datetimes cleanly; aware ones do not.
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+ROLES = ("admin", "staff")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # lowercased
+    display_name: Mapped[str] = mapped_column(String(120))
+    password_hash: Mapped[str] = mapped_column(String(255))  # argon2id PHC string
+    role: Mapped[str] = mapped_column(String(10), default="staff")  # admin | staff
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime)
+    password_changed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    sessions: Mapped[list["UserSession"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+
+
+class UserSession(Base):
+    """Server-side session. The raw token lives only in the browser cookie;
+    the table stores its SHA-256 so a leaked database cannot be replayed."""
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    ip: Mapped[str | None] = mapped_column(String(45))
+    user_agent: Mapped[str | None] = mapped_column(String(300))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    user: Mapped[User] = relationship(back_populates="sessions")
+
+
+class AuditLog(Base):
+    """Append-only. Two SQLite triggers (AUDIT_LOG_TRIGGERS) refuse UPDATE and
+    DELETE on this table even for someone with the database file open."""
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, index=True)  # no FK: rows outlive users
+    username: Mapped[str | None] = mapped_column(String(50), index=True)
+    action: Mapped[str] = mapped_column(String(40), index=True)
+    entity_type: Mapped[str | None] = mapped_column(String(20))
+    entity_id: Mapped[int | None] = mapped_column(Integer)
+    ip: Mapped[str | None] = mapped_column(String(45))
+    detail: Mapped[str | None] = mapped_column(Text)  # small JSON, never field values
+
+
+AUDIT_LOG_TRIGGERS = (
+    "CREATE TRIGGER IF NOT EXISTS audit_log_no_update BEFORE UPDATE ON audit_log "
+    "BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END",
+    "CREATE TRIGGER IF NOT EXISTS audit_log_no_delete BEFORE DELETE ON audit_log "
+    "BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END",
+)
+
+for _ddl in AUDIT_LOG_TRIGGERS:
+    # Fires for Base.metadata.create_all (tests, fresh installs). The Alembic
+    # migration executes the same statements explicitly.
+    event.listen(AuditLog.__table__, "after_create", DDL(_ddl).execute_if(dialect="sqlite"))
 
 
 class Patient(Base):
@@ -30,12 +109,18 @@ class Patient(Base):
     # written back when the discharge is saved (profile is source of truth).
     chronic_conditions: Mapped[str | None] = mapped_column(Text)
     past_history: Mapped[str | None] = mapped_column(Text)
+    # Soft delete: set instead of removing the row; admin can restore.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     records: Mapped[list["DischargeRecord"]] = relationship(
         back_populates="patient", cascade="all, delete-orphan", order_by="DischargeRecord.id.desc()"
     )
+
+    @property
+    def active_records(self) -> list["DischargeRecord"]:
+        return [r for r in self.records if r.deleted_at is None]
 
 
 class DischargeRecord(Base):
@@ -97,6 +182,13 @@ class DischargeRecord(Base):
     # Recommender: embedding of diagnosis + history + treatment text
     embedding: Mapped[bytes | None] = mapped_column(LargeBinary)
     embedding_model: Mapped[str | None] = mapped_column(String(100))
+
+    # Soft delete (see Patient.deleted_at). Deleted records are hidden from
+    # lists, profiles and the similar-case matcher.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    # NULL on the rows that predate authentication.
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

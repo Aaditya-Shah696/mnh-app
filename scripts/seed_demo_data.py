@@ -16,7 +16,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import select  # noqa: E402
 
+from app import auth, config, models  # noqa: E402
+from app.database import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
 
 # (patient, record) pairs. Phrasing intentionally varies within a family.
@@ -371,7 +374,22 @@ CASES = [
 
 
 def seed() -> None:
-    with TestClient(app) as client:
+    if config.IS_PRODUCTION:
+        sys.exit("Refusing to seed demo data: DISCHARGE_ENV=production.")
+    # Every write is attributed to a user, so seeding needs an admin to act
+    # as. Create one with scripts/create_user.py --admin first.
+    db = SessionLocal()
+    try:
+        admin = db.scalars(
+            select(models.User).where(models.User.role == "admin", models.User.is_active.is_(True))
+            .order_by(models.User.id)
+        ).first()
+    finally:
+        db.close()
+    if admin is None:
+        sys.exit("No admin user exists yet. Run scripts/create_user.py --admin first.")
+    app.dependency_overrides[auth.current_user] = lambda: admin
+    with TestClient(app, base_url="https://localhost") as client:
         first_name = CASES[0]["patient"]["name"]
         existing = [
             p for p in client.get("/api/patients", params={"q": first_name}).json()

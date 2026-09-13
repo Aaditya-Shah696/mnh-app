@@ -70,12 +70,14 @@ def test_write_back_updates_profile(client, patient):
     client.delete(f"/api/records/{rid}")
 
 
-def test_delete_guard_with_records(client, patient):
+def test_delete_patient_soft_deletes_records_too(client, patient):
     record = client.post("/api/records", json=make_record_payload(patient["id"]))
     assert record.status_code == 201
-    assert client.delete(f"/api/patients/{patient['id']}").status_code == 409
-    assert client.delete(f"/api/records/{record.json()['id']}").status_code == 204
     assert client.delete(f"/api/patients/{patient['id']}").status_code == 204
+    assert client.get(f"/api/records/{record.json()['id']}").status_code == 404
+    assert client.get(f"/api/patients/{patient['id']}").status_code == 404
+    assert client.post(f"/api/patients/{patient['id']}/restore").status_code == 200
+    assert client.get(f"/api/records/{record.json()['id']}").status_code == 200
 
 
 def test_missing_patient_404(client):

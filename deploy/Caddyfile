@@ -1,0 +1,40 @@
+# Install: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# Caddy obtains and renews the Let's Encrypt certificate itself as long as
+# the DNS A record for mnhapp.app points here and ports 80 + 443 are open.
+#
+# .app is on the browser HSTS preload list: browsers refuse plain HTTP for
+# it, so the site only works once the certificate has been issued. Port 80
+# stays open solely for the ACME challenge; Caddy answers everything else
+# on it with a redirect to HTTPS.
+
+www.mnhapp.app {
+    redir https://mnhapp.app{uri} permanent
+}
+
+mnhapp.app {
+    encode zstd gzip
+
+    request_body {
+        max_size 2MB
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        -Server
+    }
+
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 50MiB
+            roll_keep 10
+            roll_keep_for 336h
+        }
+        format json
+    }
+
+    reverse_proxy 127.0.0.1:8021 {
+        # Uvicorn is started with --proxy-headers, so the app sees the
+        # real client IP in the audit log.
+        header_up X-Forwarded-For {remote_host}
+    }
+}

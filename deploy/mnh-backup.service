@@ -1,0 +1,21 @@
+# One encrypted backup, run by mnh-backup.timer. The in-app scheduler also
+# backs up daily; both take the same lock so they never collide.
+[Unit]
+Description=MNH Discharge Records encrypted backup
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=mnh
+Group=mnh
+WorkingDirectory=/srv/mnh/app
+Environment=DISCHARGE_ENV=production
+Environment=DISCHARGE_DATA_DIR=/srv/mnh/data
+EnvironmentFile=/srv/mnh/mnh.env
+ExecStart=/srv/mnh/.venv/bin/python scripts/backup_now.py
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mnh/data
+PrivateTmp=true
+UMask=0077

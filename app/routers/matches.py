@@ -5,12 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import config, models, schemas
+from .. import auth, config, models, schemas
 from ..database import get_db
 from ..services import embeddings
 from .records import get_record_or_404
 
-router = APIRouter(prefix="/api/match", tags=["match"])
+router = APIRouter(
+    prefix="/api/match", tags=["match"], dependencies=[Depends(auth.current_user)]
+)
 
 
 @router.post("", response_model=list[schemas.MatchResult])
@@ -20,7 +22,7 @@ def match_records(query: schemas.MatchQuery, db: Session = Depends(get_db)):
     Similarity is cosine distance between local sentence embeddings of
     diagnosis + history + treatment text. If the embedding model cannot
     load, this fails loudly with 503; there is no degraded keyword-match
-    fallback.
+    fallback. Soft-deleted records are never candidates.
     """
     try:
         query_vec = embeddings.embed_text(query.text)
@@ -32,6 +34,7 @@ def match_records(query: schemas.MatchQuery, db: Session = Depends(get_db)):
     ).where(
         models.DischargeRecord.embedding.is_not(None),
         models.DischargeRecord.embedding_model == config.EMBEDDING_MODEL,
+        models.DischargeRecord.deleted_at.is_(None),
     )
     if query.exclude_record_id is not None:
         stmt = stmt.where(models.DischargeRecord.id != query.exclude_record_id)

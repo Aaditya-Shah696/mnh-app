@@ -1,0 +1,12 @@
+# Install: sudo cp deploy/mnh-autodeploy.* /etc/systemd/system/ && sudo systemctl enable --now mnh-autodeploy.timer
+# Pause deploys: sudo systemctl stop mnh-autodeploy.timer   (resume with start)
+[Unit]
+Description=Check the production branch every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

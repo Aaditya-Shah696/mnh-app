@@ -1,37 +1,35 @@
-# Registers a Windows Task Scheduler job that runs an encrypted backup
-# every night at 21:30, optionally copying it to an external drive.
-# The in-app scheduler already backs up daily while the app is running;
-# this task covers machines where the app is not left open.
+# Registers a Windows Task Scheduler job on the CLINIC PC that pulls the
+# newest encrypted backup archives from the VPS every night, so a copy of
+# the records is always inside the building.
 #
 # Run from the project folder in an elevated PowerShell:
-#   .\scripts\setup_backup_task.ps1 [-CopyTo "E:\clinic-backups"] [-At "21:30"]
-
+#   .\scripts\setup_backup_task.ps1 -Remote mnhpull@mnh-vps -Dest "E:\clinic-backups" [-At "22:00"]
+#
+# Prerequisites: Tailscale signed in on this PC, and the restricted pull key
+# at %USERPROFILE%\.ssh\mnh_pull (see docs/RUNBOOK.md).
 param(
-    [string]$CopyTo = "",
-    [string]$At = "21:30"
+    [string]$Remote = "mnhpull@mnh-vps",
+    [string]$Dest = "E:\clinic-backups",
+    [string]$At = "22:00"
 )
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$python = Join-Path $projectRoot ".venv\Scripts\python.exe"
-$script = Join-Path $projectRoot "scripts\backup_now.py"
+$script = Join-Path $projectRoot "scripts\pull_backup.ps1"
 
-if (-not (Test-Path $python)) {
-    Write-Error "Python venv not found at $python. Run setup first."
+if (-not (Test-Path $script)) {
+    Write-Error "pull_backup.ps1 not found at $script"
     exit 1
 }
 
-$argLine = "`"$script`""
-if ($CopyTo -ne "") {
-    $argLine += " --copy-to `"$CopyTo`""
-}
+$argLine = "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -Remote `"$Remote`" -Dest `"$Dest`""
 
-$action = New-ScheduledTaskAction -Execute $python -Argument $argLine -WorkingDirectory $projectRoot
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $argLine -WorkingDirectory $projectRoot
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd -RunOnlyIfNetworkAvailable
 
-Register-ScheduledTask -TaskName "MNH Discharge Backup" `
+Register-ScheduledTask -TaskName "MNH Discharge Backup Pull" `
     -Action $action -Trigger $trigger -Settings $settings `
-    -Description "Nightly encrypted backup of discharge records" -Force
+    -Description "Nightly pull of encrypted discharge-record backups from the VPS" -Force
 
-Write-Host "Scheduled task 'MNH Discharge Backup' registered for $At daily."
-if ($CopyTo -ne "") { Write-Host "Backups will also be copied to $CopyTo" }
+Write-Host "Scheduled task 'MNH Discharge Backup Pull' registered for $At daily."
+Write-Host "Archives land in $Dest. Run the task once now from Task Scheduler to confirm the key works."

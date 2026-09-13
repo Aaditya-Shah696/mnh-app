@@ -1,0 +1,46 @@
+# MNH Discharge Records - uvicorn behind Caddy.
+# Install: sudo cp deploy/mnh.service /etc/systemd/system/ && sudo systemctl enable --now mnh
+[Unit]
+Description=MNH Discharge Records
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=mnh
+Group=mnh
+WorkingDirectory=/srv/mnh/app
+Environment=DISCHARGE_ENV=production
+Environment=DISCHARGE_DATA_DIR=/srv/mnh/data
+# Set to the exact public origin, e.g. https://mnhapp.app (no trailing slash).
+EnvironmentFile=/srv/mnh/mnh.env
+# fastembed model cache; survives deploys because it lives outside the checkout.
+Environment=HF_HOME=/srv/mnh/.cache
+Environment=FASTEMBED_CACHE_PATH=/srv/mnh/.cache/fastembed
+# Exactly ONE worker: the backup scheduler, embedding backfill and login
+# throttle all assume a single process.
+ExecStart=/srv/mnh/.venv/bin/python -m uvicorn app.main:app \
+    --host 127.0.0.1 --port 8021 --workers 1 \
+    --proxy-headers --forwarded-allow-ips 127.0.0.1 \
+    --no-server-header
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/mnh/data /srv/mnh/.cache
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryMax=1200M
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

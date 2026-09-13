@@ -1,0 +1,11 @@
+# Install: sudo cp deploy/mnh-backup.* /etc/systemd/system/ && sudo systemctl enable --now mnh-backup.timer
+[Unit]
+Description=Nightly MNH Discharge Records backup
+
+[Timer]
+OnCalendar=*-*-* 21:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

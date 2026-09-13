@@ -1,0 +1,110 @@
+# CI/CD for MNH Discharge Records.
+#
+# Every push and pull request: install the hashed lock, run pip-audit, run
+# the full test suite against the REAL embedding model (cached between runs).
+#
+# Push to main, tests green: fast-forward the `production` branch to the
+# same commit. The VPS polls `production` every minute (deploy/mnh-autodeploy.timer)
+# and runs scripts/deploy.sh when it moves. The last job then waits until
+# https://mnhapp.app/api/health reports this commit, so a green check on
+# main means "deployed and healthy", and a red one means "look at the VPS".
+#
+# No deploy secrets: the VPS has no public SSH, and the only credential used
+# here is the workflow's own GITHUB_TOKEN (to push the production branch).
+
+name: CI/CD
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  PUBLIC_URL: https://mnhapp.app
+
+jobs:
+  test:
+    name: Test (real embedding model)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.lock
+
+      - name: Install locked dependencies (hash-checked)
+        run: python -m pip install -r requirements.lock --require-hashes
+
+      - name: Vulnerability audit
+        run: pip-audit -r requirements.lock --require-hashes --progress-spinner off
+
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/fastembed
+          key: fastembed-bge-small-en-v1.5-${{ runner.os }}
+
+      - name: Run tests
+        env:
+          HF_HUB_DISABLE_SYMLINKS_WARNING: "1"
+        run: |
+          # GitHub does not expand ~ or $HOME inside env:, so set it here.
+          export FASTEMBED_CACHE_PATH="$HOME/.cache/fastembed"
+          mkdir -p "$FASTEMBED_CACHE_PATH"
+          python -m pytest tests -q --no-header -p no:cacheprovider
+
+  promote:
+    name: Promote main to production
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward production to this commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Fast-forward only: production must always be an ancestor-chain of main.
+          # If main was rewritten, this fails loudly instead of silently rolling back.
+          git push origin "${GITHUB_SHA}:refs/heads/production"
+          echo "production -> ${GITHUB_SHA}"
+
+  verify-deploy:
+    name: Verify the VPS is running this commit
+    needs: promote
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Poll /api/health until version == ${{ github.sha }}
+        run: |
+          want="${GITHUB_SHA}"
+          deadline=$((SECONDS + 600))   # autodeploy polls every 60 s; deploy takes ~2 min
+          while [ $SECONDS -lt $deadline ]; do
+            body=$(curl -fsS --max-time 15 "${PUBLIC_URL}/api/health" || true)
+            have=$(printf '%s' "$body" | sed -n 's/.*"version":"\([0-9a-f]*\)".*/\1/p')
+            if [ "$have" = "$want" ]; then
+              echo "Deployed: ${PUBLIC_URL} is running ${want}"
+              exit 0
+            fi
+            echo "$(date -u +%H:%M:%S) live=${have:-unreachable} want=${want}; waiting"
+            sleep 20
+          done
+          echo "::error::${PUBLIC_URL} never reported ${want}. Check on the VPS: journalctl -u mnh-autodeploy -n 100"
+          exit 1
