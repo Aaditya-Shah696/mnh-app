@@ -61,9 +61,20 @@ Then, in this order:
    `URL Redirect` records; delete those or the app's A record will not
    win. Caddy fetches the certificate within a minute of the record
    resolving to the VPS: `sudo journalctl -u caddy -n 30`.
-2. `sudo tailscale up`, approve the machine, then from your laptop:
-   `ssh aaditya@mnh-vps`. Only after that works, log out of the Namecheap
-   console. Public SSH is closed.
+2. `sudo tailscale up --hostname mnh-vps`, open the printed login URL and
+   approve the machine, then from your laptop: `ssh aaditya@mnh-vps`. Only
+   after that works, close public SSH:
+   `sudo bash /srv/mnh/app/scripts/lockdown_ssh.sh` (it refuses to run
+   unless the tailnet is joined, and refuses to cut the session you are
+   running it from). Until then SSH stays public but key-only, watched by
+   fail2ban.
+
+   **CPU note.** Namecheap's KVM guests present a "QEMU Virtual CPU 2.5+"
+   with only SSE2/SSE3. NumPy 2.3+ wheels require x86-64-v2 and crash at
+   import, so `requirements.txt` pins `numpy<2.3`. fastembed + onnxruntime
+   run fine on it (an embedding takes well under a second). Do not lift the
+   pin unless the CPU model changes (`lscpu | grep Flags` shows `sse4_2`
+   and `popcnt`).
 3. First admin (password is prompted, never on the command line):
    ```bash
    sudo -u mnh env DISCHARGE_DATA_DIR=/srv/mnh/data /srv/mnh/.venv/bin/python \

@@ -23,6 +23,7 @@ flock -w 600 9 || { echo "another deploy is still running"; exit 1; }
 as_mnh() { sudo -u mnh env DISCHARGE_ENV=production DISCHARGE_DATA_DIR="$DATA_DIR" "$@"; }
 log() { printf '\n==> %s\n' "$*"; }
 
+cd "$APP_DIR"   # commands run as mnh must not depend on the caller's CWD
 log "Pre-deploy backup"
 # Skip if an archive was written in the last hour, so a burst of deploys
 # does not push the nightly archives out of the 30-file retention window.
@@ -46,12 +47,18 @@ log "Vulnerability audit"
 sudo -u mnh "$VENV/bin/pip-audit" -r "$APP_DIR/requirements.lock" --require-hashes --progress-spinner off
 
 log "Database migration"
-as_mnh "$VENV/bin/alembic" -c "$APP_DIR/alembic.ini" upgrade head
+(cd "$APP_DIR" && as_mnh "$VENV/bin/alembic" -c "$APP_DIR/alembic.ini" upgrade head)
 
 log "Refresh service files"
-cp "$APP_DIR/deploy/mnh.service" "$APP_DIR/deploy/mnh-backup.service" \
-   "$APP_DIR/deploy/mnh-backup.timer" "$APP_DIR/deploy/mnh-autodeploy.service" \
-   "$APP_DIR/deploy/mnh-autodeploy.timer" /etc/systemd/system/
+# sed strips any Windows line endings; a CRLF unit file fails to parse.
+for unit in mnh.service mnh-backup.service mnh-backup.timer mnh-autodeploy.service mnh-autodeploy.timer; do
+    sed 's/\r$//' "$APP_DIR/deploy/$unit" > "/etc/systemd/system/$unit"
+done
+sed 's/\r$//' "$APP_DIR/deploy/Caddyfile" > /etc/caddy/Caddyfile.new
+if ! cmp -s /etc/caddy/Caddyfile.new /etc/caddy/Caddyfile; then
+    mv /etc/caddy/Caddyfile.new /etc/caddy/Caddyfile && (systemctl reload caddy || true)
+fi
+rm -f /etc/caddy/Caddyfile.new
 systemctl daemon-reload
 # Record the commit for /api/health without needing git inside the sandboxed service.
 grep -v '^DISCHARGE_GIT_SHA=' "$APP_HOME/mnh.env" > "$APP_HOME/mnh.env.new" || true

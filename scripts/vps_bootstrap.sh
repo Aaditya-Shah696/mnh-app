@@ -78,17 +78,10 @@ grep -qxF "$ADMIN_SSH_KEY" "/home/$ADMIN_USER/.ssh/authorized_keys" 2>/dev/null 
     || echo "$ADMIN_SSH_KEY" >> "/home/$ADMIN_USER/.ssh/authorized_keys"
 chmod 600 "/home/$ADMIN_USER/.ssh/authorized_keys"
 chown "$ADMIN_USER:$ADMIN_USER" "/home/$ADMIN_USER/.ssh/authorized_keys"
-
-log "SSH hardening: no root, no passwords"
-cat > /etc/ssh/sshd_config.d/90-mnh.conf <<'EOF'
-PermitRootLogin no
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-PubkeyAuthentication yes
-X11Forwarding no
-MaxAuthTries 3
-EOF
-systemctl restart ssh
+# The admin has no password (key-only login), so sudo must not ask for one.
+echo "$ADMIN_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/90-$ADMIN_USER"
+chmod 440 "/etc/sudoers.d/90-$ADMIN_USER"
+visudo -cf "/etc/sudoers.d/90-$ADMIN_USER" >/dev/null
 
 log "Application user and directories"
 if ! id mnh >/dev/null 2>&1; then
@@ -148,25 +141,36 @@ if [ ! -f /swapfile ]; then
 fi
 
 log "Database schema"
-sudo -u mnh env DISCHARGE_ENV=production DISCHARGE_DATA_DIR="$DATA_DIR" \
-    "$VENV/bin/alembic" -c "$APP_DIR/alembic.ini" upgrade head
+# Alembic resolves script_location and pyproject.toml relative to the CWD,
+# and the mnh user cannot read the caller's home directory: run from APP_DIR.
+(cd "$APP_DIR" && sudo -u mnh env DISCHARGE_ENV=production DISCHARGE_DATA_DIR="$DATA_DIR" \
+    "$VENV/bin/alembic" -c "$APP_DIR/alembic.ini" upgrade head)
 
 log "systemd units"
-cp "$APP_DIR/deploy/mnh.service" "$APP_DIR/deploy/mnh-backup.service" \
-   "$APP_DIR/deploy/mnh-backup.timer" "$APP_DIR/deploy/mnh-autodeploy.service" \
-   "$APP_DIR/deploy/mnh-autodeploy.timer" /etc/systemd/system/
+# sed strips any Windows line endings; a CRLF unit file fails to parse.
+for unit in mnh.service mnh-backup.service mnh-backup.timer mnh-autodeploy.service mnh-autodeploy.timer; do
+    sed 's/\r$//' "$APP_DIR/deploy/$unit" > "/etc/systemd/system/$unit"
+done
 systemctl daemon-reload
 systemctl enable --now mnh mnh-backup.timer mnh-autodeploy.timer
 
 log "Caddy"
-sed "s/mnhapp.org/$PUBLIC_HOST/" "$APP_DIR/deploy/Caddyfile" > /etc/caddy/Caddyfile
+sed "s/mnhapp.org/$PUBLIC_HOST/; s/\r$//" "$APP_DIR/deploy/Caddyfile" > /etc/caddy/Caddyfile
 install -d -o caddy -g caddy /var/log/caddy
 systemctl enable caddy
 systemctl reload caddy || systemctl restart caddy
 
 log "fail2ban"
-cp "$APP_DIR/deploy/fail2ban/jail.d/mnh.conf" /etc/fail2ban/jail.d/
-cp "$APP_DIR/deploy/fail2ban/filter.d/caddy-login.conf" /etc/fail2ban/filter.d/
+# The stock sshd jail bans the address running this script after a few key
+# refusals during setup; whitelist it and lift any ban already in place.
+ADMIN_IP="${SSH_CLIENT%% *}"
+if [ -n "$ADMIN_IP" ]; then
+    printf '[DEFAULT]
+ignoreip = 127.0.0.1/8 ::1 %s
+' "$ADMIN_IP" > /etc/fail2ban/jail.d/00-ignore-admin.conf
+fi
+sed 's/\r$//' "$APP_DIR/deploy/fail2ban/jail.d/mnh.conf" > /etc/fail2ban/jail.d/mnh.conf
+sed 's/\r$//' "$APP_DIR/deploy/fail2ban/filter.d/caddy-login.conf" > /etc/fail2ban/filter.d/caddy-login.conf
 systemctl enable --now fail2ban
 systemctl restart fail2ban
 
@@ -177,7 +181,28 @@ ufw default allow outgoing
 ufw allow in on tailscale0 to any port 22 proto tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
+# Only close public SSH once the tailnet is actually joined; otherwise this
+# script would lock out the person running it. Until then SSH stays public
+# but key-only, watched by fail2ban. scripts/lockdown_ssh.sh finishes the job.
+if tailscale ip -4 >/dev/null 2>&1 && [ -n "$(tailscale ip -4 2>/dev/null)" ]; then
+    echo "tailnet joined: SSH restricted to tailscale0"
+else
+    ufw allow 22/tcp comment 'TEMPORARY public SSH until tailscale up; remove with scripts/lockdown_ssh.sh'
+    echo "tailnet NOT joined yet: public SSH left open (key-only). After 'sudo tailscale up' works, run: sudo bash $APP_DIR/scripts/lockdown_ssh.sh"
+fi
 ufw --force enable
+
+log "SSH hardening: no root, no passwords (last, so an aborted run never locks you out)"
+sudo -u "$ADMIN_USER" sudo -n true || { echo "admin user cannot sudo; refusing to disable root login"; exit 1; }
+cat > /etc/ssh/sshd_config.d/90-mnh.conf <<'EOF'
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+X11Forwarding no
+MaxAuthTries 3
+EOF
+sshd -t && systemctl restart ssh
 
 cat <<EOF
 
