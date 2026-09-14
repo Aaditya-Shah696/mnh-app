@@ -29,16 +29,22 @@ from app.database import SessionLocal, engine  # noqa: E402
 
 
 def _prompt_password(username: str) -> str:
+    if not sys.stdin.isatty():
+        print("Note: no terminal detected, so typed passwords may be visible. "
+              "Prefer: ssh -t <host> '...create_user.py ...'", file=sys.stderr, flush=True)
+    print(f"Password must be at least {config.PASSWORD_MIN_LENGTH} characters.",
+          file=sys.stderr, flush=True)
     while True:
         first = getpass.getpass("Password: ")
         second = getpass.getpass("Repeat password: ")
         if first != second:
-            print("Passwords do not match, try again.")
+            # stderr + flush: visible even when stdout is piped (e.g. plain ssh without -t)
+            print("Passwords do not match, try again.", file=sys.stderr, flush=True)
             continue
         try:
             auth.validate_new_password(first, username)
         except HTTPException as exc:
-            print(exc.detail)
+            print(f"Rejected: {exc.detail}. Try again.", file=sys.stderr, flush=True)
             continue
         return first
 

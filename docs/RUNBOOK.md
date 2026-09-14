@@ -69,6 +69,17 @@ Then, in this order:
    running it from). Until then SSH stays public but key-only, watched by
    fail2ban.
 
+   **DNS note.** Namecheap's resolvers are at 100.100.100.17/18, inside the
+   100.64.0.0/10 range that Tailscale routes into the tailnet. With Tailscale
+   up they vanish and every name lookup fails (git fetch, apt, Let's Encrypt
+   renewals). The image sets them statically in `/etc/network/interfaces`
+   (`dns-nameservers`) and writes a plain `/etc/resolv.conf`. The bootstrap
+   rewrites both to 1.1.1.1/8.8.8.8, points `/etc/resolv.conf` at the
+   systemd-resolved stub with the same servers, and runs
+   `tailscale set --accept-dns=false`.
+   Symptom if it regresses: `journalctl -u mnh-autodeploy` shows
+   "fetch failed" and `dig github.com` returns nothing.
+
    **CPU note.** Namecheap's KVM guests present a "QEMU Virtual CPU 2.5+"
    with only SSE2/SSE3. NumPy 2.3+ wheels require x86-64-v2 and crash at
    import, so `requirements.txt` pins `numpy<2.3`. fastembed + onnxruntime

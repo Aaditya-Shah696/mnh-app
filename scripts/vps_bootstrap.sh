@@ -61,6 +61,33 @@ if ! command -v tailscale >/dev/null; then
     curl -fsSL https://tailscale.com/install.sh | sh
 fi
 
+log "DNS: public resolvers (provider resolvers collide with the Tailscale range)"
+# Namecheap's image configures eth0 statically in /etc/network/interfaces with
+# resolvers at 100.100.100.x, inside 100.64.0.0/10 which Tailscale routes into
+# the tailnet; once Tailscale is up they are unreachable and git/apt/ACME fail
+# with "Temporary failure in name resolution". Use public resolvers everywhere
+# the image could pick DNS up from, and hand /etc/resolv.conf to systemd-resolved.
+if [ -f /etc/network/interfaces ]; then
+    sed -i 's/^\(\s*\)dns-nameservers .*/\1dns-nameservers 1.1.1.1 8.8.8.8/' /etc/network/interfaces
+fi
+if [ -f /etc/dhcp/dhclient.conf ] && ! grep -q '^supersede domain-name-servers' /etc/dhcp/dhclient.conf; then
+    echo 'supersede domain-name-servers 1.1.1.1, 8.8.8.8;' >> /etc/dhcp/dhclient.conf
+fi
+install -d /etc/systemd/resolved.conf.d
+cat > /etc/systemd/resolved.conf.d/10-public-dns.conf <<'EOF'
+[Resolve]
+DNS=1.1.1.1 8.8.8.8
+FallbackDNS=9.9.9.9
+Domains=~.
+EOF
+systemctl enable --now systemd-resolved >/dev/null 2>&1 || true
+systemctl restart systemd-resolved
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+resolvectl flush-caches || true
+# And never let Tailscale replace the system resolver on this box.
+command -v tailscale >/dev/null && tailscale set --accept-dns=false >/dev/null 2>&1 || true
+getent hosts github.com >/dev/null || { echo "DNS still broken after fix; aborting" >&2; exit 1; }
+
 log "Automatic security updates"
 cat > /etc/apt/apt.conf.d/20auto-upgrades <<'EOF'
 APT::Periodic::Update-Package-Lists "1";
