@@ -11,7 +11,7 @@ Group=mnh
 WorkingDirectory=/srv/mnh/app
 Environment=DISCHARGE_ENV=production
 Environment=DISCHARGE_DATA_DIR=/srv/mnh/data
-# Set to the exact public origin, e.g. https://mnhapp.app (no trailing slash).
+# Set to the exact public origin, e.g. https://mnhapp.org (no trailing slash).
 EnvironmentFile=/srv/mnh/mnh.env
 # fastembed model cache; survives deploys because it lives outside the checkout.
 Environment=HF_HOME=/srv/mnh/.cache

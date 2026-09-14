@@ -6,7 +6,7 @@
 # Push to main, tests green: fast-forward the `production` branch to the
 # same commit. The VPS polls `production` every minute (deploy/mnh-autodeploy.timer)
 # and runs scripts/deploy.sh when it moves. The last job then waits until
-# https://mnhapp.app/api/health reports this commit, so a green check on
+# https://mnhapp.org/api/health reports this commit, so a green check on
 # main means "deployed and healthy", and a red one means "look at the VPS".
 #
 # No deploy secrets: the VPS has no public SSH, and the only credential used
@@ -26,7 +26,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12"
-  PUBLIC_URL: https://mnhapp.app
+  PUBLIC_URL: https://mnhapp.org
 
 jobs:
   test:
@@ -71,15 +71,26 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+    outputs:
+      skipped: ${{ steps.promote.outputs.skipped }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Fast-forward production to this commit
+        id: promote
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Re-running an old workflow run must not roll production back:
+          # if production already contains this commit there is nothing to do.
+          if git fetch --quiet origin production 2>/dev/null \
+             && git merge-base --is-ancestor "${GITHUB_SHA}" origin/production; then
+            echo "production is already at or past ${GITHUB_SHA} ($(git rev-parse --short origin/production)); nothing to promote"
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # Fast-forward only: production must always be an ancestor-chain of main.
           # If main was rewritten, this fails loudly instead of silently rolling back.
           git push origin "${GITHUB_SHA}:refs/heads/production"
@@ -88,7 +99,9 @@ jobs:
   verify-deploy:
     name: Verify the VPS is running this commit
     needs: promote
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Skipped when promote found production already past this commit (a
+    # re-run of an old workflow run); verifying an old SHA would just fail.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.promote.outputs.skipped != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:

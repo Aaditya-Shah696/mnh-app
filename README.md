@@ -77,7 +77,7 @@ git push origin main                         # every release
 GitHub Actions runs `pip-audit` and the full test suite, then
 fast-forwards the `production` branch. The VPS polls that branch every
 minute and deploys it (`scripts/autodeploy.sh` → `scripts/deploy.sh`),
-and the workflow finishes only when `https://mnhapp.app/api/health`
+and the workflow finishes only when `https://mnhapp.org/api/health`
 reports the pushed commit. GitHub holds no server credentials.
 
 Everything operational (first build, moving the existing records, backups

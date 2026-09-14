@@ -11,7 +11,7 @@
 #   ADMIN_USER      sudo user for Aaditya (default: aaditya)
 #   ADMIN_SSH_KEY   the public key line for ADMIN_USER (REQUIRED)
 #   REPO_URL        git URL of this repository (default: git@github.com:Aaditya-Shah696/mnh-app.git)
-#   PUBLIC_HOST     the hostname Caddy will serve (default: mnhapp.app)
+#   PUBLIC_HOST     the hostname Caddy will serve (default: mnhapp.org)
 #
 # The repository is private, so the `mnh` user clones it with a read-only
 # GitHub deploy key. On the first run the script generates that key, prints
@@ -29,7 +29,7 @@ set -euo pipefail
 ADMIN_USER="${ADMIN_USER:-aaditya}"
 ADMIN_SSH_KEY="${ADMIN_SSH_KEY:?set ADMIN_SSH_KEY to the admin public key line}"
 REPO_URL="${REPO_URL:-git@github.com:Aaditya-Shah696/mnh-app.git}"
-PUBLIC_HOST="${PUBLIC_HOST:-mnhapp.app}"
+PUBLIC_HOST="${PUBLIC_HOST:-mnhapp.org}"
 
 APP_HOME=/srv/mnh
 APP_DIR=$APP_HOME/app
@@ -159,7 +159,7 @@ systemctl daemon-reload
 systemctl enable --now mnh mnh-backup.timer mnh-autodeploy.timer
 
 log "Caddy"
-sed "s/mnhapp.app/$PUBLIC_HOST/" "$APP_DIR/deploy/Caddyfile" > /etc/caddy/Caddyfile
+sed "s/mnhapp.org/$PUBLIC_HOST/" "$APP_DIR/deploy/Caddyfile" > /etc/caddy/Caddyfile
 install -d -o caddy -g caddy /var/log/caddy
 systemctl enable caddy
 systemctl reload caddy || systemctl restart caddy

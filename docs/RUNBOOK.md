@@ -4,7 +4,7 @@ Operational reference for the Namecheap VPS deployment. Design rationale
 lives in the (uncommitted) plan; this file is what you open at 9 pm when
 something is wrong.
 
-Placeholders: `mnhapp.app` is the public hostname, `mnh-vps` is the
+Placeholders: `mnhapp.org` is the public hostname, `mnh-vps` is the
 Tailscale machine name, `aaditya` is the sudo user.
 
 ## Layout on the server
@@ -15,7 +15,7 @@ Tailscale machine name, `aaditya` is the sudo user.
 | `/srv/mnh/.venv` | Python venv, installed from `requirements.lock` with `--require-hashes` | `mnh` |
 | `/srv/mnh/data` | `discharge.db`, `clinic.json`, `backup_password.txt`, `backups/` | `mnh`, 700 |
 | `/srv/mnh/.cache` | fastembed model (downloaded once) | `mnh` |
-| `/srv/mnh/mnh.env` | `DISCHARGE_PUBLIC_ORIGIN=https://mnhapp.app` | `mnh`, 600 |
+| `/srv/mnh/mnh.env` | `DISCHARGE_PUBLIC_ORIGIN=https://mnhapp.org` | `mnh`, 600 |
 | `/etc/systemd/system/mnh.service` | uvicorn, `127.0.0.1:8021`, one worker | root |
 | `/etc/systemd/system/mnh-backup.{service,timer}` | nightly 21:30 encrypted backup | root |
 | `/etc/caddy/Caddyfile` | HTTPS on 443, Let's Encrypt, proxy to 8021 | root |
@@ -54,13 +54,13 @@ same command; it continues from the clone.
 
 Then, in this order:
 
-1. DNS in Namecheap → Domain List → `mnhapp.app` → Advanced DNS:
+1. DNS in Namecheap → Domain List → `mnhapp.org` → Advanced DNS:
    `A Record`, host `@`, value = server IP, TTL automatic; optionally
-   `CNAME`, host `www`, value `mnhapp.app.` (Caddy redirects it). Remove any
-   parking records Namecheap added. `.app` is HSTS-preloaded in every
-   browser, so the site only works over HTTPS; Caddy fetches the
-   certificate within a minute of the record resolving:
-   `sudo journalctl -u caddy -n 30`.
+   `CNAME`, host `www`, value `mnhapp.org.` (Caddy redirects it). Namecheap
+   parks a new domain on its own IP (`162.255.119.x`) with `A` and
+   `URL Redirect` records; delete those or the app's A record will not
+   win. Caddy fetches the certificate within a minute of the record
+   resolving to the VPS: `sudo journalctl -u caddy -n 30`.
 2. `sudo tailscale up`, approve the machine, then from your laptop:
    `ssh aaditya@mnh-vps`. Only after that works, log out of the Namecheap
    console. Public SSH is closed.
@@ -70,7 +70,7 @@ Then, in this order:
        /srv/mnh/app/scripts/create_user.py --admin --username mitesh --display-name "Dr. Mitesh Shah"
    ```
 4. Clinic details: `sudo -u mnh nano /srv/mnh/data/clinic.json` (see README).
-5. Open `https://mnhapp.app` on a phone. Padlock, login page, sign in.
+5. Open `https://mnhapp.org` on a phone. Padlock, login page, sign in.
 6. Add staff users from the Users page, or with `create_user.py` without `--admin`.
 
 ### Moving the existing records from the laptop
@@ -109,7 +109,7 @@ Push to `main`. That is the whole procedure. What happens:
    snapshot (skipped if an archive is under an hour old), reset the
    checkout to `production`, install with hash checking, `pip-audit`,
    `alembic upgrade head`, refresh unit files, restart, health check.
-4. The workflow's last job polls `https://mnhapp.app/api/health` until
+4. The workflow's last job polls `https://mnhapp.org/api/health` until
    its `version` equals the pushed commit (up to 10 minutes). Green check
    on the commit means it is live; red means open the VPS log. While the
    hostname does not resolve at all (server not built, no DNS record) the
@@ -122,7 +122,7 @@ Push to `main`. That is the whole procedure. What happens:
 | Pause deploys (e.g. during clinic hours) | `sudo systemctl stop mnh-autodeploy.timer`; resume with `start` |
 | Deploy by hand | `sudo bash /srv/mnh/app/scripts/deploy.sh` |
 | Emergency deploy of main without CI | `sudo BRANCH=main bash /srv/mnh/app/scripts/deploy.sh` (the next autodeploy moves it back to production once CI passes) |
-| Which commit is live | `curl -s https://mnhapp.app/api/health` |
+| Which commit is live | `curl -s https://mnhapp.org/api/health` |
 
 Rollback: `git revert` the bad commit on `main` and push; CI redeploys the
 revert in a few minutes. If the bad commit had a migration, run
@@ -137,7 +137,7 @@ three seconds. Merge during quiet hours or pause the timer for the day.
 
 | Task | Command |
 |---|---|
-| Is it up | `curl -fsS https://mnhapp.app/api/health` |
+| Is it up | `curl -fsS https://mnhapp.org/api/health` |
 | Service state | `systemctl status mnh caddy fail2ban mnh-backup.timer` |
 | App log | `journalctl -u mnh -n 100 -f` |
 | Who is hammering login | `sudo fail2ban-client status caddy-login` and the Audit page filtered to `login.failure` |
@@ -146,7 +146,7 @@ three seconds. Merge during quiet hours or pause the timer for the day.
 | Unlock / reset a user | Users page, or `create_user.py --reset-password --username <name>` |
 | List users | `create_user.py --list` |
 
-Uptime monitoring: register `https://mnhapp.app/api/health` with a free
+Uptime monitoring: register `https://mnhapp.org/api/health` with a free
 checker (UptimeRobot or similar), 5-minute interval, alert to Aaditya's
 email. Without this, the first person to notice an outage is a receptionist.
 
@@ -233,7 +233,7 @@ fail2ban bans at 20 failed logins in 10 minutes for an hour:
 `sudo fail2ban-client set caddy-login unbanip <ip>`.
 
 **Certificate error in the browser.** `sudo journalctl -u caddy -n 50`.
-Usually DNS: `dig +short mnhapp.app` must return the server IP, and
+Usually DNS: `dig +short mnhapp.org` must return the server IP, and
 port 80 must be reachable (ACME challenge).
 
 **"database is locked" in the log.** Should not happen with one worker. If
@@ -252,7 +252,7 @@ users or IPs; rebuild the VPS from scratch before bringing it back.
 
 ## Weekly five-minute check
 
-1. `https://mnhapp.app/api/health` responds.
+1. `https://mnhapp.org/api/health` responds.
 2. Audit page: filter `login.failure`, last 7 days. A handful is normal;
    hundreds from one IP means fail2ban is doing its job, thousands means
    raise `maxretry` scrutiny.

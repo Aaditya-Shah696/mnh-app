@@ -1,17 +1,14 @@
 # Install: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
 # Caddy obtains and renews the Let's Encrypt certificate itself as long as
-# the DNS A record for mnhapp.app points here and ports 80 + 443 are open.
-#
-# .app is on the browser HSTS preload list: browsers refuse plain HTTP for
-# it, so the site only works once the certificate has been issued. Port 80
-# stays open solely for the ACME challenge; Caddy answers everything else
-# on it with a redirect to HTTPS.
+# the DNS A record for mnhapp.org points here and ports 80 + 443 are open.
+# Port 80 is used for the ACME challenge; everything else on it is
+# redirected to HTTPS by Caddy automatically.
 
-www.mnhapp.app {
-    redir https://mnhapp.app{uri} permanent
+www.mnhapp.org {
+    redir https://mnhapp.org{uri} permanent
 }
 
-mnhapp.app {
+mnhapp.org {
     encode zstd gzip
 
     request_body {
@@ -19,7 +16,7 @@ mnhapp.app {
     }
 
     header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
         -Server
     }
 
