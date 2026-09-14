@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import ntpath
 import secrets
 import sqlite3
 import threading
@@ -129,6 +130,26 @@ def _prune_old() -> None:
             logger.warning("Could not prune %s", old)
 
 
+def safe_member_path(name: str) -> str:
+    """Normalise an archive entry name to a relative POSIX path, or raise.
+
+    Rejected on EVERY platform, not only where they would actually escape:
+    drive-anchored names ("C:/...", "C:\\..."), and any ".." component.
+    On Linux, `Path("target") / "C:/evil"` is merely a relative path inside
+    target, so a containment check alone would accept an entry that on
+    Windows resolves to C:\\evil. Our own archives never contain either
+    form, so refusing them costs nothing. A leading slash is stripped:
+    "/etc/x" restores to "target/etc/x", which is harmless.
+    """
+    clean = name.replace("\\", "/").lstrip("/")
+    if ntpath.splitdrive(clean)[0]:
+        raise ValueError(f"Unsafe path in archive: {name}")
+    parts = clean.split("/")
+    if not clean or any(part == ".." for part in parts):
+        raise ValueError(f"Unsafe path in archive: {name}")
+    return clean
+
+
 def restore_backup(archive: Path, target_dir: Path, password: str) -> list[str]:
     """Extract a backup into target_dir and verify DB integrity.
     Returns the list of restored file names. Never writes into the live
@@ -148,7 +169,7 @@ def restore_backup(archive: Path, target_dir: Path, password: str) -> list[str]:
     with pyzipper.AESZipFile(archive) as zf:
         zf.setpassword(password.encode("utf-8"))
         for name in zf.namelist():
-            clean = name.replace("\\", "/").lstrip("/")
+            clean = safe_member_path(name)
             dest = (target_dir / clean).resolve()
             if dest != target_dir and target_dir not in dest.parents:
                 raise ValueError(f"Unsafe path in archive: {name}")

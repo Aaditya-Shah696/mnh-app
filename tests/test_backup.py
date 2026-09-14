@@ -76,6 +76,28 @@ def test_restore_rejects_path_escaping_entries(tmp_path, entry_name):
     assert not escaped.exists()
 
 
+@pytest.mark.parametrize("bad", [
+    "C:/Windows/Temp/evil.txt", "C:\\evil.txt", "c:evil.txt",
+    "../evil.txt", "a/../../evil.txt", "..", "a/..", "",
+])
+def test_safe_member_path_rejects_on_every_platform(bad):
+    """The guard is platform-independent: CI runs on Linux, where a
+    drive-anchored name would otherwise be accepted as a relative path."""
+    with pytest.raises(ValueError, match="Unsafe path"):
+        backup.safe_member_path(bad)
+
+
+@pytest.mark.parametrize("ok,expected", [
+    ("discharge.db", "discharge.db"),
+    ("attachments/x.pdf", "attachments/x.pdf"),
+    ("attachments\\x.pdf", "attachments/x.pdf"),
+    ("/etc/evil.txt", "etc/evil.txt"),
+    ("a/./b", "a/./b"),
+])
+def test_safe_member_path_accepts_normal_entries(ok, expected):
+    assert backup.safe_member_path(ok) == expected
+
+
 def test_restore_contains_leading_slash_entries_inside_target(tmp_path):
     """A POSIX absolute-looking entry ("/etc/evil.txt") isn't a traversal
     once the leading slash is stripped - it must land safely inside
