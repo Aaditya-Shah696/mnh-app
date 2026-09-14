@@ -95,6 +95,15 @@ jobs:
       - name: Poll /api/health until version == ${{ github.sha }}
         run: |
           want="${GITHUB_SHA}"
+          host="${PUBLIC_URL#https://}"
+          # Until the VPS is built and the DNS A record exists there is nothing
+          # to verify. A hostname that does not resolve is "not provisioned yet",
+          # reported as a warning, not a failed build. Once it resolves, a
+          # missing or stale version IS a failed deploy.
+          if ! getent hosts "$host" >/dev/null; then
+            echo "::warning::${host} does not resolve yet (VPS not provisioned or DNS A record missing). Promotion to production succeeded; deployment will happen once the server exists."
+            exit 0
+          fi
           deadline=$((SECONDS + 600))   # autodeploy polls every 60 s; deploy takes ~2 min
           while [ $SECONDS -lt $deadline ]; do
             body=$(curl -fsS --max-time 15 "${PUBLIC_URL}/api/health" || true)

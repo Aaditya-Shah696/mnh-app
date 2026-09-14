@@ -111,7 +111,9 @@ Push to `main`. That is the whole procedure. What happens:
    `alembic upgrade head`, refresh unit files, restart, health check.
 4. The workflow's last job polls `https://mnhapp.app/api/health` until
    its `version` equals the pushed commit (up to 10 minutes). Green check
-   on the commit means it is live; red means open the VPS log.
+   on the commit means it is live; red means open the VPS log. While the
+   hostname does not resolve at all (server not built, no DNS record) the
+   job passes with a warning instead, because there is nothing to verify.
 
 | Need | Command (on the VPS) |
 |---|---|
