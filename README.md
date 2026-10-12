@@ -76,9 +76,13 @@ git push origin main                         # every release
 
 GitHub Actions runs `pip-audit` and the full test suite, then
 fast-forwards the `production` branch. The VPS polls that branch every
-minute and deploys it (`scripts/autodeploy.sh` → `scripts/deploy.sh`),
-and the workflow finishes only when `https://mnhapp.org/api/health`
-reports the pushed commit. GitHub holds no server credentials.
+minute and deploys it (`scripts/autodeploy.sh` → `scripts/deploy.sh`, run
+by root from root-owned copies in `/usr/local/lib/mnh`, never from the
+checkout). A deploy that fails at any step is rolled back to the previous
+commit, dependencies, schema and service files, and is not retried until
+`production` moves again. The workflow finishes only when
+`https://mnhapp.org/api/health` reports the pushed commit. GitHub holds no
+server credentials.
 
 Everything operational (first build, moving the existing records, backups
 that the clinic PC pulls nightly, restore drill, incidents) is in
@@ -95,7 +99,7 @@ production):
 | `DISCHARGE_SESSION_IDLE_HOURS` | `12` | sign out after this long without activity |
 | `DISCHARGE_SESSION_MAX_DAYS` | `14` | sign out unconditionally after this long |
 | `DISCHARGE_COOKIE_SECURE` | `1` | set `0` only for a browser that refuses Secure cookies on localhost |
-| `DISCHARGE_BACKUP_DIR` | `data/backups` | where archives are written |
+| `DISCHARGE_BACKUP_DIR` | `data/backups` | where archives are written (`/srv/mnh-backups/archives` on the VPS, outside the database directory) |
 | `DISCHARGE_BACKUP_INTERVAL_HOURS` | `24` | in-app scheduler interval |
 
 ## Users and roles
@@ -154,7 +158,9 @@ every card. No restart needed for the PDF; reload the page for the header.
 
 - While the app runs, an encrypted backup is written to `data/backups/`
   whenever the newest one is older than 24 h. On the VPS a systemd timer
-  also runs one at 21:30.
+  also runs one at 21:30 IST. Archives are written under a temporary name
+  and renamed when complete, and every writer (app, timer, CLI) takes the
+  same file lock.
 - Manual backup: `python scripts\backup_now.py [--copy-to E:\...]`
   or `POST /api/backup` (admin).
 - On the VPS deployment the clinic PC pulls the archives nightly with
@@ -162,8 +168,11 @@ every card. No restart needed for the PDF; reload the page for the header.
 - Restore (to a fresh folder, never straight over live data):
 
   ```powershell
-  .venv\Scripts\python scripts\restore_backup.py data\backups\discharge_backup_XXXX.zip C:\restore-here
+  .venv\Scripts\python scripts\restore_backup.py data\backups\discharge_backup_XXXX.zip C:\restore-here --prompt
   ```
+
+  `--prompt` asks for the password without echoing it; `--password-file`
+  reads it from a file. Without either, `data/backup_password.txt` is used.
 
   Then stop the app, swap the restored folder in place of `data/`, run
   `alembic upgrade head`, and start the app again. Restores are
@@ -192,7 +201,8 @@ app/
   audit.py           audit() helper (rows join the caller's transaction)
   config.py          paths, env overrides, clinic.json loader
   database.py        engine, session, SQLite pragmas (WAL, FKs)
-  models.py          User, UserSession, AuditLog, Patient, DischargeRecord, TreatmentItem
+  models.py          User, UserSession, LoginFailure, AuditLog, Patient, DischargeRecord, TreatmentItem
+  querying.py        LIKE-pattern escaping for name search
   schemas.py         pydantic request/response models
   routers/           auth, users, audit, patients, records, match, backups
   services/
@@ -201,10 +211,11 @@ app/
     backup.py        encrypted backup/restore + scheduler
   static/            no-build UI (index.html, css, js)
 alembic/             migrations (SQLite batch mode enabled)
-deploy/              systemd units, Caddyfile, fail2ban jail + filter
+deploy/              systemd units, Caddyfile, fail2ban jail + filter, sshd block for the pull user
 docs/RUNBOOK.md      build, deploy, backups, restore drill, incidents
 scripts/             create_user, seed_demo_data, backup_now, restore_backup,
-                     vps_bootstrap.sh, deploy.sh, pull_backup.ps1, setup_backup_task.ps1
+                     vps_bootstrap.sh, deploy_lib.sh, deploy.sh, autodeploy.sh,
+                     lockdown_ssh.sh, pull_backup.ps1, setup_backup_task.ps1
 tests/               pytest suite (real embedding model, real auth, no mocks)
 ```
 

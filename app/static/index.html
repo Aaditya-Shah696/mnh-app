@@ -428,16 +428,26 @@
     <div class="card">
       <div class="section">
         <div class="field-grid audit-filters">
-          <div class="field col-3">
+          <div class="field col-2">
             <label for="audit-username">User</label>
             <input type="text" id="audit-username" placeholder="username" autocomplete="off">
           </div>
-          <div class="field col-3">
+          <div class="field col-2">
             <label for="audit-action">Action</label>
             <select id="audit-action"><option value="">All actions</option></select>
           </div>
           <div class="field col-2">
-            <label for="audit-entity-id">Record / patient #</label>
+            <label for="audit-entity-type">Entity</label>
+            <select id="audit-entity-type">
+              <option value="">Any</option>
+              <option value="record">Record</option>
+              <option value="patient">Patient</option>
+              <option value="user">User</option>
+              <option value="backup">Backup</option>
+            </select>
+          </div>
+          <div class="field col-2">
+            <label for="audit-entity-id">Entity #</label>
             <input type="text" id="audit-entity-id" inputmode="numeric" placeholder="id">
           </div>
           <div class="field col-2">

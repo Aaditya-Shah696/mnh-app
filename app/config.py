@@ -52,15 +52,19 @@ COOKIE_SECURE = os.environ.get("DISCHARGE_COOKIE_SECURE", "1").strip() != "0"
 PASSWORD_MIN_LENGTH = 12
 PASSWORD_MAX_LENGTH = 256
 
-# Account lockout: after LOGIN_LOCK_THRESHOLD consecutive failures the account
-# locks for LOGIN_LOCK_BASE_MINUTES, doubling per further failure up to
-# LOGIN_LOCK_MAX_HOURS. Stored on the user row so it survives restarts.
+# Account lockout: after LOGIN_LOCK_THRESHOLD consecutive failures for a
+# username from one address, that address is locked out of that username for
+# LOGIN_LOCK_BASE_MINUTES, doubling per further failure up to
+# LOGIN_LOCK_MAX_HOURS. Stored in login_failures so it survives restarts.
 LOGIN_LOCK_THRESHOLD = 5
 LOGIN_LOCK_BASE_MINUTES = 15
 LOGIN_LOCK_MAX_HOURS = 24
+LOGIN_FAILURE_RESET_HOURS = 24
 # Per-IP throttle on /api/auth/login (in-process; the app runs one worker).
 LOGIN_IP_LIMIT = 30
 LOGIN_IP_WINDOW_SECONDS = 600
+
+MATCH_VIEW_AUDIT_MINUTES = 60
 
 # Printed on every discharge card, before the signature. Editable in
 # data/clinic.json; sourced from WHO/IMCI general danger signs and

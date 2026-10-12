@@ -69,6 +69,16 @@ class UserSession(Base):
     user: Mapped[User] = relationship(back_populates="sessions")
 
 
+class LoginFailure(Base):
+    __tablename__ = "login_failures"
+
+    username: Mapped[str] = mapped_column(String(50), primary_key=True)
+    ip: Mapped[str] = mapped_column(String(45), primary_key=True)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime)
+    last_failure_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+
 class AuditLog(Base):
     """Append-only. Two SQLite triggers (AUDIT_LOG_TRIGGERS) refuse UPDATE and
     DELETE on this table even for someone with the database file open."""

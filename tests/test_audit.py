@@ -2,13 +2,14 @@
 views and PDFs are logged, values are never logged, and the table is
 append-only at the database level."""
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import text
 
 from app import config, models
 from app.database import SessionLocal
-from tests.conftest import ADMIN, STAFF, make_record_payload
+from tests.conftest import ADMIN, STAFF, login, make_record_payload
 
 
 def _rows(client, **params):
@@ -150,3 +151,47 @@ def test_unknown_action_is_a_programming_error():
 
     with pytest.raises(ValueError):
         audit(None, "record.explode")
+
+
+def test_prefix_filter_includes_the_bare_action(anon_client, client):
+    login(anon_client, STAFF)
+    assert anon_client.post("/api/auth/logout").status_code == 204
+    rows = _rows(client, action="logout.", limit=50)
+    assert rows["total"] >= 1
+    assert all(r["action"] == "logout" or r["action"].startswith("logout.") for r in rows["items"])
+    login_rows = _rows(client, action="login.", limit=50)
+    assert login_rows["total"] >= 1
+    assert all(r["action"].startswith("login.") for r in login_rows["items"])
+
+
+def test_date_filters_honour_the_timezone_offset(client):
+    pid = client.post("/api/patients", json={"name": "Timezone Probe"}).json()["id"]
+    row = _rows(client, action="patient.create", entity_id=pid)["items"][0]
+    ts = datetime.fromisoformat(row["ts"])
+    ist = timezone(timedelta(hours=5, minutes=30))
+    local = ts.replace(tzinfo=timezone.utc).astimezone(ist)
+    just_before = (local - timedelta(seconds=1)).isoformat()
+    just_after = (local + timedelta(seconds=1)).isoformat()
+    assert _count(client, action="patient.create", entity_id=pid, since=just_before) == 1
+    assert _count(client, action="patient.create", entity_id=pid, since=just_after) == 0
+    assert _count(client, action="patient.create", entity_id=pid, until=just_after) == 1
+    assert _count(client, action="patient.create", entity_id=pid, until=just_before) == 0
+
+
+def test_keyset_paging_never_duplicates_or_skips_while_events_arrive(client):
+    for n in range(7):
+        client.post("/api/patients", json={"name": f"Paging Probe {n}"})
+    snapshot = [r["id"] for r in _rows(client, action="patient.create", limit=500)["items"]]
+
+    first = _rows(client, action="patient.create", limit=3)
+    assert [r["id"] for r in first["items"]] == snapshot[:3]
+    assert first["next_before_id"] == snapshot[2]
+
+    for n in range(2):
+        client.post("/api/patients", json={"name": f"Arrived Mid Paging {n}"})
+
+    second = _rows(client, action="patient.create", limit=3, before_id=first["next_before_id"])
+    assert [r["id"] for r in second["items"]] == snapshot[3:6]
+
+    last = _rows(client, action="patient.create", limit=500, before_id=snapshot[-1] + 1)
+    assert last["next_before_id"] is None

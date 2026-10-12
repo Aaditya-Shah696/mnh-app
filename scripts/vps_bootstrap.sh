@@ -13,37 +13,45 @@
 #   REPO_URL        git URL of this repository (default: git@github.com:Aaditya-Shah696/mnh-app.git)
 #   PUBLIC_HOST     the hostname Caddy will serve (default: mnhapp.org)
 #
-# The repository is private, so the `mnh` user clones it with a read-only
-# GitHub deploy key. On the first run the script generates that key, prints
-# it, and stops; add it at https://github.com/Aaditya-Shah696/mnh-app/settings/keys
+# The repository is private, so root clones it with a read-only GitHub deploy
+# key. On the first run the script generates that key, prints it, and stops;
+# add it at https://github.com/Aaditya-Shah696/mnh-app/settings/keys
 # (read-only is enough) and re-run the script. Every later run is quiet.
 #
 # After it finishes:
 #   1. Point the DNS A record for PUBLIC_HOST at this server.
 #   2. `sudo tailscale up` and approve the machine in the Tailscale admin.
-#   3. Confirm you can SSH in over the tailnet as ADMIN_USER, THEN close the
-#      console session: public SSH is closed by the firewall from this point on.
-#   4. Create the first admin:  sudo -u mnh /srv/mnh/.venv/bin/python /srv/mnh/app/scripts/create_user.py --admin --username <name> --display-name "<Name>"
+#   3. Confirm you can SSH in over the tailnet as ADMIN_USER, THEN run
+#      scripts/lockdown_ssh.sh to close public SSH.
+#   4. Create the first admin (see docs/RUNBOOK.md).
 set -euo pipefail
+umask 022
 
 ADMIN_USER="${ADMIN_USER:-aaditya}"
 ADMIN_SSH_KEY="${ADMIN_SSH_KEY:?set ADMIN_SSH_KEY to the admin public key line}"
 REPO_URL="${REPO_URL:-git@github.com:Aaditya-Shah696/mnh-app.git}"
 PUBLIC_HOST="${PUBLIC_HOST:-mnhapp.org}"
+PULL_SSH_KEY="${PULL_SSH_KEY:-}"
+DEPLOY_SIGNERS="${DEPLOY_SIGNERS:-}"
 
 APP_HOME=/srv/mnh
 APP_DIR=$APP_HOME/app
-VENV=$APP_HOME/.venv
-DATA_DIR=$APP_HOME/data
+CONF_DIR=/etc/mnh
+DEPLOY_KEY=$CONF_DIR/deploy_key
+KNOWN_HOSTS=$CONF_DIR/known_hosts
+GITHUB_HOST_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
 
 log() { printf '\n==> %s\n' "$*"; }
 
 [ "$(id -u)" -eq 0 ] || { echo "run as root"; exit 1; }
+if ! [[ $PUBLIC_HOST =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]]; then
+    echo "PUBLIC_HOST '$PUBLIC_HOST' is not a hostname"; exit 1
+fi
 
 log "System packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -y -q python3 python3-venv python3-pip git ufw fail2ban \
+apt-get install -y -q python3 python3-venv python3-pip git ufw fail2ban python3-systemd acl \
     unattended-upgrades apt-listchanges curl ca-certificates gnupg \
     debian-keyring debian-archive-keyring apt-transport-https
 
@@ -110,97 +118,6 @@ echo "$ADMIN_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/90-$ADMIN_USER"
 chmod 440 "/etc/sudoers.d/90-$ADMIN_USER"
 visudo -cf "/etc/sudoers.d/90-$ADMIN_USER" >/dev/null
 
-log "Application user and directories"
-if ! id mnh >/dev/null 2>&1; then
-    adduser --system --group --home "$APP_HOME" --shell /usr/sbin/nologin mnh
-fi
-install -d -m 750 -o mnh -g mnh "$APP_HOME"
-install -d -m 700 -o mnh -g mnh "$DATA_DIR" "$APP_HOME/.cache"
-
-log "Deploy key for the private repository"
-install -d -m 700 -o mnh -g mnh "$APP_HOME/.ssh"
-if [ ! -f "$APP_HOME/.ssh/id_ed25519" ]; then
-    sudo -u mnh ssh-keygen -q -t ed25519 -N "" -C "mnh-vps deploy key" -f "$APP_HOME/.ssh/id_ed25519"
-fi
-sudo -u mnh sh -c "ssh-keyscan -t ed25519 github.com 2>/dev/null >> $APP_HOME/.ssh/known_hosts"
-sort -u -o "$APP_HOME/.ssh/known_hosts" "$APP_HOME/.ssh/known_hosts"
-
-log "Code checkout"
-if [ ! -d "$APP_DIR/.git" ]; then
-    if ! sudo -u mnh git clone --quiet "$REPO_URL" "$APP_DIR" 2>/tmp/clone.err; then
-        echo
-        echo "Clone of $REPO_URL failed: $(tail -1 /tmp/clone.err)"
-        echo "Add this READ-ONLY deploy key to the repository, then re-run this script:"
-        echo "  https://github.com/Aaditya-Shah696/mnh-app/settings/keys"
-        echo
-        cat "$APP_HOME/.ssh/id_ed25519.pub"
-        echo
-        exit 1
-    fi
-fi
-# Serve the CI-promoted `production` branch when it exists; until the first
-# green CI run on main it does not, and main is used for the initial build.
-sudo -u mnh git -C "$APP_DIR" fetch --quiet origin
-if sudo -u mnh git -C "$APP_DIR" rev-parse --verify --quiet origin/production >/dev/null; then
-    sudo -u mnh git -C "$APP_DIR" checkout --quiet -B production origin/production
-else
-    sudo -u mnh git -C "$APP_DIR" checkout --quiet -B main origin/main
-fi
-
-log "Python virtualenv + locked dependencies (hash-checked)"
-[ -d "$VENV" ] || sudo -u mnh python3 -m venv "$VENV"
-sudo -u mnh "$VENV/bin/pip" install --upgrade pip -q
-sudo -u mnh "$VENV/bin/pip" install -r "$APP_DIR/requirements.lock" --require-hashes -q
-
-log "Environment file"
-if [ ! -f "$APP_HOME/mnh.env" ]; then
-    cat > "$APP_HOME/mnh.env" <<EOF
-DISCHARGE_PUBLIC_ORIGIN=https://$PUBLIC_HOST
-EOF
-    chown mnh:mnh "$APP_HOME/mnh.env"
-    chmod 600 "$APP_HOME/mnh.env"
-fi
-
-log "Swap (the embedding model load spikes memory on a 2 GB box)"
-if [ ! -f /swapfile ]; then
-    fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-    echo '/swapfile none swap sw 0 0' >> /etc/fstab
-fi
-
-log "Database schema"
-# Alembic resolves script_location and pyproject.toml relative to the CWD,
-# and the mnh user cannot read the caller's home directory: run from APP_DIR.
-(cd "$APP_DIR" && sudo -u mnh env DISCHARGE_ENV=production DISCHARGE_DATA_DIR="$DATA_DIR" \
-    "$VENV/bin/alembic" -c "$APP_DIR/alembic.ini" upgrade head)
-
-log "systemd units"
-# sed strips any Windows line endings; a CRLF unit file fails to parse.
-for unit in mnh.service mnh-backup.service mnh-backup.timer mnh-autodeploy.service mnh-autodeploy.timer; do
-    sed 's/\r$//' "$APP_DIR/deploy/$unit" > "/etc/systemd/system/$unit"
-done
-systemctl daemon-reload
-systemctl enable --now mnh mnh-backup.timer mnh-autodeploy.timer
-
-log "Caddy"
-sed "s/mnhapp.org/$PUBLIC_HOST/; s/\r$//" "$APP_DIR/deploy/Caddyfile" > /etc/caddy/Caddyfile
-install -d -o caddy -g caddy /var/log/caddy
-systemctl enable caddy
-systemctl reload caddy || systemctl restart caddy
-
-log "fail2ban"
-# The stock sshd jail bans the address running this script after a few key
-# refusals during setup; whitelist it and lift any ban already in place.
-ADMIN_IP="${SSH_CLIENT%% *}"
-if [ -n "$ADMIN_IP" ]; then
-    printf '[DEFAULT]
-ignoreip = 127.0.0.1/8 ::1 %s
-' "$ADMIN_IP" > /etc/fail2ban/jail.d/00-ignore-admin.conf
-fi
-sed 's/\r$//' "$APP_DIR/deploy/fail2ban/jail.d/mnh.conf" > /etc/fail2ban/jail.d/mnh.conf
-sed 's/\r$//' "$APP_DIR/deploy/fail2ban/filter.d/caddy-login.conf" > /etc/fail2ban/filter.d/caddy-login.conf
-systemctl enable --now fail2ban
-systemctl restart fail2ban
-
 log "Firewall: 80/443 public, SSH over the tailnet only"
 ufw --force reset >/dev/null
 ufw default deny incoming
@@ -219,9 +136,10 @@ else
 fi
 ufw --force enable
 
-log "SSH hardening: no root, no passwords (last, so an aborted run never locks you out)"
+log "SSH hardening: no root login, no passwords"
 sudo -u "$ADMIN_USER" sudo -n true || { echo "admin user cannot sudo; refusing to disable root login"; exit 1; }
-cat > /etc/ssh/sshd_config.d/90-mnh.conf <<'EOF'
+rm -f /etc/ssh/sshd_config.d/90-mnh.conf
+cat > /etc/ssh/sshd_config.d/00-mnh.conf <<'EOF'
 PermitRootLogin no
 PasswordAuthentication no
 KbdInteractiveAuthentication no
@@ -229,7 +147,171 @@ PubkeyAuthentication yes
 X11Forwarding no
 MaxAuthTries 3
 EOF
-sshd -t && systemctl restart ssh
+chmod 644 /etc/ssh/sshd_config.d/00-mnh.conf
+install -d -m 755 /run/sshd
+sshd -t
+effective=$(sshd -T)
+for want in "permitrootlogin no" "passwordauthentication no" "kbdinteractiveauthentication no" "pubkeyauthentication yes"; do
+    if ! grep -qx "$want" <<<"$effective"; then
+        echo "sshd's effective config does not have '$want'; another file in /etc/ssh overrides it" >&2
+        exit 1
+    fi
+done
+systemctl restart ssh
+
+log "Application user and directories"
+if ! id mnh >/dev/null 2>&1; then
+    adduser --system --group --home "$APP_HOME" --shell /usr/sbin/nologin mnh
+fi
+install -d -m 750 -o root -g mnh "$APP_HOME"
+install -d -m 700 -o mnh -g mnh "$APP_HOME/data" "$APP_HOME/.cache"
+install -d -m 750 -o mnh -g mnh "$APP_HOME/.venv"
+install -d -m 700 -o root -g root "$CONF_DIR" /var/lib/mnh
+printf 'PUBLIC_HOST=%s\n' "$PUBLIC_HOST" > "$CONF_DIR/deploy.conf"
+chmod 600 "$CONF_DIR/deploy.conf"
+if [ -n "$DEPLOY_SIGNERS" ]; then
+    printf '%s\n' "$DEPLOY_SIGNERS" > "$CONF_DIR/allowed_signers"
+    chmod 644 "$CONF_DIR/allowed_signers"
+fi
+
+log "Deploy key for the private repository (root-only; the app user has no repository access)"
+if [ ! -f "$DEPLOY_KEY" ]; then
+    if [ -f "$APP_HOME/.ssh/id_ed25519" ]; then
+        install -m 600 -o root -g root "$APP_HOME/.ssh/id_ed25519" "$DEPLOY_KEY"
+        install -m 644 -o root -g root "$APP_HOME/.ssh/id_ed25519.pub" "$DEPLOY_KEY.pub"
+    else
+        ssh-keygen -q -t ed25519 -N "" -C "mnh-vps deploy key" -f "$DEPLOY_KEY"
+    fi
+fi
+rm -f "$APP_HOME/.ssh/id_ed25519" "$APP_HOME/.ssh/id_ed25519.pub" "$APP_HOME/.ssh/known_hosts" \
+    "$APP_HOME/deploy.lock" "$APP_HOME/autodeploy.state"
+rmdir "$APP_HOME/.ssh" 2>/dev/null || true
+printf 'github.com %s\n' "$GITHUB_HOST_KEY" > "$KNOWN_HOSTS"
+chmod 644 "$KNOWN_HOSTS"
+
+log "Code checkout (root-owned, readable by the app user)"
+export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o StrictHostKeyChecking=yes -o BatchMode=yes"
+if [ ! -d "$APP_DIR/.git" ]; then
+    if ! clone_output=$(git clone --quiet "$REPO_URL" "$APP_DIR" 2>&1); then
+        echo
+        echo "Clone of $REPO_URL failed: ${clone_output##*$'\n'}"
+        echo "Add this READ-ONLY deploy key to the repository, then re-run this script:"
+        echo "  https://github.com/Aaditya-Shah696/mnh-app/settings/keys"
+        echo
+        cat "$DEPLOY_KEY.pub"
+        echo
+        exit 1
+    fi
+fi
+chown -R root:mnh "$APP_DIR"
+git -C "$APP_DIR" remote set-url origin "$REPO_URL"
+# Serve the CI-promoted `production` branch when it exists; until the first
+# green CI run on main it does not, and main is used for the initial build.
+git -C "$APP_DIR" fetch --quiet origin
+if git -C "$APP_DIR" rev-parse --verify --quiet origin/production >/dev/null; then
+    git -C "$APP_DIR" checkout --quiet --force -B production origin/production
+else
+    git -C "$APP_DIR" checkout --quiet --force -B main origin/main
+fi
+unset GIT_SSH_COMMAND
+
+. "$APP_DIR/scripts/deploy_lib.sh"
+fix_checkout_permissions
+cd "$APP_DIR"
+
+log "Python virtualenv + locked dependencies (hash-checked)"
+[ -x "$VENV/bin/python" ] || as_mnh python3 -m venv "$VENV"
+as_mnh "$VENV/bin/pip" install --upgrade pip -q
+as_mnh "$VENV/bin/pip" install -r "$APP_DIR/requirements.lock" --require-hashes -q
+
+log "Backup archives (separate from the database) and the SFTP-only pull user"
+if ! id mnhpull >/dev/null 2>&1; then
+    adduser --disabled-password --gecos "" --shell /usr/sbin/nologin mnhpull
+fi
+if [ "$(getent passwd mnhpull | cut -d: -f7)" != /usr/sbin/nologin ]; then
+    usermod --shell /usr/sbin/nologin mnhpull
+fi
+install -d -m 755 -o root -g root "$BACKUP_ROOT"
+install -d -m 750 -o mnh -g mnh "$BACKUP_DIR"
+if [ -d "$DATA_DIR/backups" ]; then
+    find "$DATA_DIR/backups" -maxdepth 1 -type f -name 'discharge_backup_*.zip' \
+        -exec mv -n -t "$BACKUP_DIR" {} +
+    rm -f "$DATA_DIR/backups/.db_snapshot.tmp"
+    rmdir "$DATA_DIR/backups" 2>/dev/null || echo "left $DATA_DIR/backups in place: it still holds other files"
+fi
+setfacl -b "$APP_HOME"
+setfacl -R -b "$DATA_DIR"
+setfacl -m u:mnhpull:rx "$BACKUP_DIR"
+setfacl -d -m u:mnhpull:r "$BACKUP_DIR"
+find "$BACKUP_DIR" -maxdepth 1 -type f -name 'discharge_backup_*.zip' -exec setfacl -m u:mnhpull:r {} +
+install -d -m 700 -o mnhpull -g mnhpull /home/mnhpull/.ssh
+PULL_KEYS=/home/mnhpull/.ssh/authorized_keys
+if [ -n "$PULL_SSH_KEY" ] && ! grep -qF "$PULL_SSH_KEY" "$PULL_KEYS" 2>/dev/null; then
+    printf 'restrict %s\n' "$PULL_SSH_KEY" >> "$PULL_KEYS"
+fi
+if [ -f "$PULL_KEYS" ]; then
+    chown mnhpull:mnhpull "$PULL_KEYS"
+    chmod 600 "$PULL_KEYS"
+else
+    echo "No pull key installed yet: re-run with PULL_SSH_KEY set to the clinic PC's mnh_pull.pub line."
+fi
+sed -i '/^Match User mnhpull$/,$d' /etc/ssh/sshd_config
+if [ -n "$(tail -c 1 /etc/ssh/sshd_config)" ]; then
+    echo >> /etc/ssh/sshd_config
+fi
+sed 's/\r$//' "$APP_DIR/deploy/sshd/mnhpull.conf" >> /etc/ssh/sshd_config
+sshd -t
+pull_config=$(sshd -T -C user=mnhpull,host=clinic-pc,addr=100.64.0.1)
+for want in "chrootdirectory $BACKUP_ROOT" "forcecommand internal-sftp -R -d /archives" \
+    "passwordauthentication no" "allowtcpforwarding no" "permittty no"; do
+    if ! grep -qx "$want" <<<"$pull_config"; then
+        echo "sshd's effective config for mnhpull does not have '$want'" >&2
+        exit 1
+    fi
+done
+systemctl restart ssh
+
+log "Environment file"
+if [ -z "$(env_value DISCHARGE_PUBLIC_ORIGIN)" ]; then
+    set_env_var DISCHARGE_PUBLIC_ORIGIN "https://$PUBLIC_HOST"
+fi
+set_env_var DISCHARGE_BACKUP_DIR "$BACKUP_DIR"
+
+log "Swap (the embedding model load spikes memory on a 2 GB box)"
+if [ ! -f /swapfile ]; then
+    fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
+log "Database schema (owner-only files)"
+as_mnh "$VENV/bin/alembic" -c "$APP_DIR/alembic.ini" upgrade head
+lock_down_data
+
+log "systemd units, Caddy, deploy scripts"
+staged=$(mktemp -d)
+render_system_files "$APP_DIR" "$staged"
+validate_caddyfile "$staged/Caddyfile"
+install_system_files "$staged"
+rm -rf "$staged"
+install_deploy_scripts "$APP_DIR"
+systemctl daemon-reload
+systemctl enable --now caddy mnh mnh-backup.timer mnh-autodeploy.timer
+systemctl restart caddy mnh
+
+log "fail2ban"
+# The stock sshd jail bans the address running this script after a few key
+# refusals during setup; whitelist it and lift any ban already in place.
+ADMIN_IP="${SSH_CLIENT:-}"
+ADMIN_IP="${ADMIN_IP%% *}"
+if [ -n "$ADMIN_IP" ]; then
+    printf '[DEFAULT]\nignoreip = 127.0.0.1/8 ::1 %s\n' "$ADMIN_IP" > /etc/fail2ban/jail.d/00-ignore-admin.conf
+fi
+sed 's/\r$//' "$APP_DIR/deploy/fail2ban/jail.d/mnh.conf" > /etc/fail2ban/jail.d/mnh.conf
+sed 's/\r$//' "$APP_DIR/deploy/fail2ban/filter.d/mnh-login.conf" > /etc/fail2ban/filter.d/mnh-login.conf
+rm -f /etc/fail2ban/filter.d/caddy-login.conf
+fail2ban-client --test >/dev/null
+systemctl enable fail2ban
+systemctl restart fail2ban
 
 cat <<EOF
 
@@ -237,7 +319,7 @@ Done. Next:
   1. DNS: A record  $PUBLIC_HOST -> $(curl -fsS https://api.ipify.org || echo '<this server IP>')
   2. sudo tailscale up            (approve the machine, then test SSH over the tailnet as $ADMIN_USER)
   3. First admin:
-     sudo -u mnh env DISCHARGE_DATA_DIR=$DATA_DIR $VENV/bin/python $APP_DIR/scripts/create_user.py --admin --username <name> --display-name "<Name>"
+     cd $APP_DIR && sudo -u mnh env DISCHARGE_DATA_DIR=$DATA_DIR $VENV/bin/python scripts/create_user.py --admin --username <name> --display-name "<Name>"
   4. curl -fsS http://127.0.0.1:8021/api/health   -> {"status":"ok"}
   5. https://$PUBLIC_HOST  from a phone: login page with a padlock.
 EOF

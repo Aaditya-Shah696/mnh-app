@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from .. import auth, models, schemas
 from ..audit import audit, changed_fields
 from ..database import get_db
+from ..querying import contains_pattern
 from ..models import utcnow
 
 router = APIRouter(
@@ -68,8 +69,10 @@ def list_patients(
     )
     stmt = select(models.Patient).where(visibility)
     if q:
-        like = f"%{q.strip()}%"
-        stmt = stmt.where(models.Patient.name.ilike(like)).order_by(models.Patient.name)
+        like = contains_pattern(q.strip())
+        stmt = stmt.where(
+            models.Patient.name.ilike(like, escape="\\")
+        ).order_by(models.Patient.name)
     else:
         stmt = stmt.order_by(models.Patient.updated_at.desc())
     return db.scalars(stmt.limit(limit)).all()

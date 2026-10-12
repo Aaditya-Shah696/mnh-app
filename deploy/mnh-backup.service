@@ -16,6 +16,6 @@ ExecStart=/srv/mnh/.venv/bin/python scripts/backup_now.py
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/srv/mnh/data
+ReadWritePaths=/srv/mnh/data -/srv/mnh-backups/archives
 PrivateTmp=true
 UMask=0077

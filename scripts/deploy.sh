@@ -1,84 +1,140 @@
 #!/usr/bin/env bash
 # Deploy the `production` branch to the VPS. Normally run by
-# scripts/autodeploy.sh (every minute, via deploy/mnh-autodeploy.timer) after
-# CI promotes main; also fine by hand:
-#   sudo bash /srv/mnh/app/scripts/deploy.sh            # production branch
-#   sudo BRANCH=main bash /srv/mnh/app/scripts/deploy.sh # skip CI, for emergencies only
-#
-# Order matters: snapshot, fetch + reset to the remote branch, install
-# (hash-checked), audit, migrate, restart, health check. A failing step
-# aborts before the service restarts, and the snapshot makes a bad migration
-# a restore away. A lock stops a manual run colliding with the timer.
+# autodeploy.sh (every minute, via deploy/mnh-autodeploy.timer) after CI
+# promotes main; also fine by hand, always from the root-owned copy:
+#   sudo /usr/local/lib/mnh/deploy.sh                # production branch
+#   sudo BRANCH=main /usr/local/lib/mnh/deploy.sh    # skip CI, for emergencies only
 set -euo pipefail
+umask 027
 
-APP_HOME=/srv/mnh
-APP_DIR=$APP_HOME/app
-VENV=$APP_HOME/.venv
-DATA_DIR=$APP_HOME/data
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/deploy_lib.sh"
+
+[ "$(id -u)" -eq 0 ] || { echo "run as root" >&2; exit 1; }
+
 BRANCH="${BRANCH:-production}"
+TARGET="${TARGET:-}"
 
-exec 9>"$APP_HOME/deploy.lock"
-flock -w 600 9 || { echo "another deploy is still running"; exit 1; }
+if ! layout_is_current; then
+    echo "This server predates the root-owned deploy layout; re-run scripts/vps_bootstrap.sh first." >&2
+    exit 1
+fi
 
-as_mnh() { sudo -u mnh env DISCHARGE_ENV=production DISCHARGE_DATA_DIR="$DATA_DIR" "$@"; }
-log() { printf '\n==> %s\n' "$*"; }
+install -d -m 700 -o root -g root "$STATE_DIR"
+if [ "${MNH_DEPLOY_LOCK_HELD:-0}" != 1 ]; then
+    exec 9>"$STATE_DIR/deploy.lock"
+    flock -w 600 9 || { echo "another deploy is still running" >&2; exit 1; }
+fi
 
-cd "$APP_DIR"   # commands run as mnh must not depend on the caller's CWD
+cd "$APP_DIR"
+work=$(mktemp -d)
+sha=""
+prev=""
+prev_db=""
+changing=""
+migrated=""
+system_files=""
+restarted=""
+
+rollback() {
+    local back
+    echo "deploy of $sha FAILED; rolling back to ${prev:-nothing}" >&2
+    if [ -n "$migrated" ]; then
+        if [ -n "$prev_db" ]; then
+            as_mnh "$VENV/bin/alembic" -c "$APP_DIR/alembic.ini" downgrade "$prev_db" \
+                || echo "database downgrade to $prev_db FAILED; restore the pre-deploy archive" >&2
+        else
+            echo "previous database revision unknown; check it with alembic current" >&2
+        fi
+    fi
+    if [ -n "$prev" ]; then
+        git_app checkout --quiet --force -B "$BRANCH" "$prev"
+        git_app clean -ffdq
+        fix_checkout_permissions
+        as_mnh "$VENV/bin/pip" install -r "$APP_DIR/requirements.lock" --require-hashes -q
+        if [ -n "$system_files" ]; then
+            back=$(mktemp -d)
+            render_system_files "$APP_DIR" "$back" && install_system_files "$back"
+            rm -rf "$back"
+        fi
+        set_env_var DISCHARGE_GIT_SHA "$prev"
+        if [ -n "$restarted" ]; then
+            systemctl restart mnh
+            wait_healthy "$prev" || echo "the previous version is not healthy either" >&2
+        fi
+    fi
+    journalctl -u mnh --no-pager -n 40 >&2
+}
+
+finish() {
+    local status=$?
+    trap - EXIT INT TERM
+    set +e
+    if [ "$status" -ne 0 ] && [ -n "$changing" ]; then
+        rollback
+    fi
+    rm -rf "$work"
+    exit "$status"
+}
+trap finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+log "Fetch $BRANCH"
+git_app fetch --quiet origin "$BRANCH"
+sha=$(git_app rev-parse "${TARGET:-origin/$BRANCH}^{commit}")
+if ! git_app merge-base --is-ancestor "$sha" "origin/$BRANCH"; then
+    echo "$sha is not on origin/$BRANCH; refusing to deploy it" >&2
+    exit 1
+fi
+verify_commit "$sha"
+git_app log -1 --oneline "$sha"
+prev=$(cat "$STATE_DIR/deployed" 2>/dev/null || git_app rev-parse HEAD)
+prev_db=$(current_db_revision || true)
+
+log "Validate service files from $sha"
+mkdir -p "$work/src" "$work/staged"
+git_app archive "$sha" deploy | tar -x -C "$work/src"
+render_system_files "$work/src" "$work/staged"
+validate_caddyfile "$work/staged/Caddyfile"
+
 log "Pre-deploy backup"
-# Skip if an archive was written in the last hour, so a burst of deploys
-# does not push the nightly archives out of the 30-file retention window.
-if [ -z "$(find "$DATA_DIR/backups" -maxdepth 1 -name 'discharge_backup_*.zip' -mmin -60 2>/dev/null | head -1)" ]; then
-    as_mnh "$VENV/bin/python" "$APP_DIR/scripts/backup_now.py"
+if [ -z "$(find "$(backup_dir)" -maxdepth 1 -name 'discharge_backup_*.zip' -mmin -60 -print -quit 2>/dev/null)" ]; then
+    systemctl start mnh-backup.service
 else
     echo "recent archive exists; skipping"
 fi
 
-log "Fetch $BRANCH"
-sudo -u mnh git -C "$APP_DIR" fetch --quiet origin "$BRANCH"
-# The VPS never has local commits: make the checkout exactly the remote branch.
-sudo -u mnh git -C "$APP_DIR" checkout --quiet -B "$BRANCH" "origin/$BRANCH"
-sha=$(sudo -u mnh git -C "$APP_DIR" rev-parse HEAD)
-sudo -u mnh git -C "$APP_DIR" log -1 --oneline
+changing=1
+
+log "Check out $sha"
+git_app checkout --quiet --force -B "$BRANCH" "$sha"
+git_app clean -ffdq
+fix_checkout_permissions
 
 log "Install locked dependencies (hash-checked)"
-sudo -u mnh "$VENV/bin/pip" install -r "$APP_DIR/requirements.lock" --require-hashes -q
+as_mnh "$VENV/bin/pip" install -r "$APP_DIR/requirements.lock" --require-hashes -q
 
 log "Vulnerability audit"
-sudo -u mnh "$VENV/bin/pip-audit" -r "$APP_DIR/requirements.lock" --require-hashes --progress-spinner off
+as_mnh "$VENV/bin/pip-audit" -r "$APP_DIR/requirements.lock" --require-hashes --progress-spinner off
 
 log "Database migration"
-(cd "$APP_DIR" && as_mnh "$VENV/bin/alembic" -c "$APP_DIR/alembic.ini" upgrade head)
+migrated=1
+as_mnh "$VENV/bin/alembic" -c "$APP_DIR/alembic.ini" upgrade head
+lock_down_data
 
-log "Refresh service files"
-# sed strips any Windows line endings; a CRLF unit file fails to parse.
-for unit in mnh.service mnh-backup.service mnh-backup.timer mnh-autodeploy.service mnh-autodeploy.timer; do
-    sed 's/\r$//' "$APP_DIR/deploy/$unit" > "/etc/systemd/system/$unit"
-done
-sed 's/\r$//' "$APP_DIR/deploy/Caddyfile" > /etc/caddy/Caddyfile.new
-if ! cmp -s /etc/caddy/Caddyfile.new /etc/caddy/Caddyfile; then
-    mv /etc/caddy/Caddyfile.new /etc/caddy/Caddyfile && (systemctl reload caddy || true)
-fi
-rm -f /etc/caddy/Caddyfile.new
-systemctl daemon-reload
-# Record the commit for /api/health without needing git inside the sandboxed service.
-grep -v '^DISCHARGE_GIT_SHA=' "$APP_HOME/mnh.env" > "$APP_HOME/mnh.env.new" || true
-echo "DISCHARGE_GIT_SHA=$sha" >> "$APP_HOME/mnh.env.new"
-install -m 600 -o mnh -g mnh "$APP_HOME/mnh.env.new" "$APP_HOME/mnh.env"
-rm -f "$APP_HOME/mnh.env.new"
+log "Service files"
+system_files=1
+install_system_files "$work/staged"
+set_env_var DISCHARGE_GIT_SHA "$sha"
 
 log "Restart"
+restarted=1
 systemctl restart mnh
-sleep 3
-systemctl --no-pager --lines=0 status mnh | head -3
 
 log "Health check"
-for i in 1 2 3 4 5 6; do
-    body=$(curl -fsS http://127.0.0.1:8021/api/health || true)
-    if printf '%s' "$body" | grep -q "\"version\":\"$sha\""; then
-        echo "healthy, running $sha"; exit 0
-    fi
-    sleep 3
-done
-echo "Health check FAILED (got: ${body:-nothing}); recent log:" >&2
-journalctl -u mnh --no-pager -n 40 >&2
-exit 1
+wait_healthy "$sha"
+
+printf '%s\n' "$sha" > "$STATE_DIR/deployed"
+changing=""
+install_deploy_scripts "$APP_DIR"
+echo "deployed $sha"

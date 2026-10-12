@@ -6,31 +6,39 @@ Design (see .docs/AUTH_SECURITY_DEPLOYMENT_PLAN.md):
 - Sessions are opaque random tokens; the cookie holds the raw token and
   the `sessions` table holds its SHA-256. Idle and absolute expiry, and
   revocation, are all enforced server-side.
-- Account lockout is stored on the user row (survives restarts); the
-  per-IP throttle is in-process, which is correct because the app runs
+- Account lockout is counted per username and address in the
+  login_failures table (survives restarts), so a stranger guessing a
+  password locks out only their own address. The per-IP throttle and the
+  attempt guard are in-process, which is correct because the app runs
   exactly one worker.
 """
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import logging
+import math
 import secrets
 import threading
 import time
+import zlib
 from collections import deque
-from datetime import timedelta
+from contextlib import contextmanager
+from datetime import datetime, timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from fastapi import Depends, HTTPException, Request, Response, status
-from sqlalchemy import select, update
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.orm import Session, joinedload, object_session
 
 from . import config, models
 from .database import get_db
 from .models import utcnow
 
 logger = logging.getLogger(__name__)
+security_logger = logging.getLogger("mnh.security")
 
 _hasher = PasswordHasher()
 # Verified on every failed lookup of a non-existent username so the response
@@ -248,29 +256,150 @@ class _IpThrottle:
 login_ip_throttle = _IpThrottle(config.LOGIN_IP_LIMIT, config.LOGIN_IP_WINDOW_SECONDS)
 
 
-def is_locked(user: models.User, now=None) -> bool:
+_attempt_locks = tuple(threading.Lock() for _ in range(64))
+
+
+def _ip_key(ip: str | None) -> str:
+    return (ip or "unknown")[:45]
+
+
+@contextmanager
+def login_attempt_guard(username: str, ip: str | None):
+    key = f"{username}|{_ip_key(ip)}".encode("utf-8")
+    with _attempt_locks[zlib.crc32(key) % len(_attempt_locks)]:
+        yield
+
+
+def lock_minutes(failures: int) -> int:
+    over = failures - config.LOGIN_LOCK_THRESHOLD
+    if over < 0:
+        return 0
+    cap = config.LOGIN_LOCK_MAX_HOURS * 60
+    return min(config.LOGIN_LOCK_BASE_MINUTES * (2 ** min(over, 32)), cap)
+
+
+def active_lock(db: Session, username: str, ip: str | None, now=None) -> datetime | None:
     now = now or utcnow()
-    return user.locked_until is not None and user.locked_until > now
+    locked_until = db.execute(
+        select(models.LoginFailure.locked_until).where(
+            models.LoginFailure.username == username,
+            models.LoginFailure.ip == _ip_key(ip),
+        )
+    ).scalar_one_or_none()
+    if locked_until is not None and locked_until > now:
+        return locked_until
+    return None
 
 
-def register_login_failure(user: models.User) -> None:
-    user.failed_logins = (user.failed_logins or 0) + 1
-    over = user.failed_logins - config.LOGIN_LOCK_THRESHOLD
-    if over >= 0:
-        minutes = config.LOGIN_LOCK_BASE_MINUTES * (2 ** over)
-        minutes = min(minutes, config.LOGIN_LOCK_MAX_HOURS * 60)
-        user.locked_until = utcnow() + timedelta(minutes=minutes)
+def locked_detail(locked_until: datetime, now=None) -> str:
+    now = now or utcnow()
+    minutes = max(1, math.ceil((locked_until - now).total_seconds() / 60))
+    unit = "minute" if minutes == 1 else "minutes"
+    return (
+        f"Too many failed sign-in attempts from this device. Try again in {minutes} {unit}, "
+        "or ask an administrator to unlock the account."
+    )
 
 
-def register_login_success(user: models.User) -> None:
+def retry_after_seconds(locked_until: datetime, now=None) -> int:
+    now = now or utcnow()
+    return max(1, math.ceil((locked_until - now).total_seconds()))
+
+
+def register_login_failure(
+    db: Session, username: str, ip: str | None, user: models.User | None = None,
+) -> tuple[int, datetime | None]:
+    now = utcnow()
+    table = models.LoginFailure.__table__
+    upsert = (
+        sqlite_insert(table)
+        .values(username=username, ip=_ip_key(ip), failures=1, last_failure_at=now)
+        .on_conflict_do_update(
+            index_elements=[table.c.username, table.c.ip],
+            set_={"failures": table.c.failures + 1, "last_failure_at": now},
+        )
+        .returning(table.c.failures)
+    )
+    failures = db.execute(upsert).scalar_one()
+    minutes = lock_minutes(failures)
+    locked_until = now + timedelta(minutes=minutes) if minutes else None
+    if locked_until is not None:
+        db.execute(
+            update(table)
+            .where(table.c.username == username, table.c.ip == _ip_key(ip))
+            .values(locked_until=locked_until)
+        )
+    if user is not None:
+        values = {"failed_logins": models.User.failed_logins + 1}
+        db.execute(
+            update(models.User).where(models.User.id == user.id).values(**values),
+            execution_options={"synchronize_session": False},
+        )
+        if locked_until is not None:
+            db.execute(
+                update(models.User)
+                .where(
+                    models.User.id == user.id,
+                    or_(models.User.locked_until.is_(None), models.User.locked_until < locked_until),
+                )
+                .values(locked_until=locked_until),
+                execution_options={"synchronize_session": False},
+            )
+        db.expire(user, ["failed_logins", "locked_until"])
+    return failures, locked_until
+
+
+def clear_login_failures(db: Session, user: models.User, ip: str | None) -> None:
+    now = utcnow()
+    db.execute(
+        delete(models.LoginFailure).where(
+            models.LoginFailure.username == user.username,
+            models.LoginFailure.ip == _ip_key(ip),
+        )
+    )
     user.failed_logins = 0
-    user.locked_until = None
+    user.locked_until = db.scalar(
+        select(func.max(models.LoginFailure.locked_until)).where(
+            models.LoginFailure.username == user.username,
+            models.LoginFailure.locked_until > now,
+        )
+    )
+
+
+def register_login_success(db: Session, user: models.User, ip: str | None) -> None:
+    clear_login_failures(db, user, ip)
     user.last_login_at = utcnow()
 
 
 def unlock_user(user: models.User) -> None:
     user.failed_logins = 0
     user.locked_until = None
+    db = object_session(user)
+    if db is not None:
+        db.execute(
+            delete(models.LoginFailure).where(models.LoginFailure.username == user.username)
+        )
+
+
+def prune_login_failures(db: Session) -> int:
+    now = utcnow()
+    cutoff = now - timedelta(hours=config.LOGIN_FAILURE_RESET_HOURS)
+    return db.execute(
+        delete(models.LoginFailure).where(
+            models.LoginFailure.last_failure_at < cutoff,
+            or_(models.LoginFailure.locked_until.is_(None), models.LoginFailure.locked_until <= now),
+        )
+    ).rowcount
+
+
+def log_rejected_login(ip: str | None) -> None:
+    if not ip:
+        return
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return
+    security_logger.warning("login rejected from %s", address)
 
 
 def dummy_verify() -> None:
@@ -288,9 +417,12 @@ def _pruner_loop() -> None:
         db = SessionLocal()
         try:
             removed = prune_sessions(db)
+            stale = prune_login_failures(db)
             db.commit()
             if removed:
                 logger.info("Pruned %d dead sessions", removed)
+            if stale:
+                logger.info("Pruned %d stale login failure counters", stale)
         except Exception:  # noqa: BLE001
             logger.exception("Session pruning failed")
             db.rollback()

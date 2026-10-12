@@ -18,10 +18,12 @@ from __future__ import annotations
 import json
 import logging
 import ntpath
+import os
 import secrets
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -47,7 +49,9 @@ def get_or_create_password() -> str:
         if password:
             return password
     password = secrets.token_urlsafe(24)
-    path.write_text(password + "\n", encoding="utf-8")
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(password + "\n")
     logger.warning(
         "Generated new backup password at %s. Write it down somewhere safe "
         "OUTSIDE this computer; backups cannot be opened without it.", path
@@ -57,18 +61,43 @@ def get_or_create_password() -> str:
 
 def _snapshot_db() -> bytes:
     """Consistent point-in-time copy of the SQLite DB via the backup API."""
-    tmp_path = config.BACKUPS_DIR / ".db_snapshot.tmp"
     src = sqlite3.connect(config.DB_PATH)
-    dest = sqlite3.connect(tmp_path)
+    dest = sqlite3.connect(":memory:")
     try:
         src.backup(dest)
+        return dest.serialize()
     finally:
         dest.close()
         src.close()
-    try:
-        return tmp_path.read_bytes()
-    finally:
-        tmp_path.unlink(missing_ok=True)
+
+
+@contextmanager
+def _interprocess_lock():
+    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(config.DATA_DIR / ".backup.lock", "a+b") as handle:
+        if os.name == "nt":
+            import msvcrt
+
+            while True:
+                handle.seek(0)
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                    break
+                except OSError:
+                    continue
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def list_backups() -> list[Path]:
@@ -84,35 +113,51 @@ def last_backup_time() -> datetime | None:
     return datetime.fromtimestamp(backups[-1].stat().st_mtime)
 
 
+def _archive_path() -> Path:
+    while True:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = config.BACKUPS_DIR / f"{BACKUP_PREFIX}{stamp}.zip"
+        if not path.exists():
+            return path
+        time.sleep(1)
+
+
 def create_backup() -> Path:
     """Write an encrypted backup archive; returns its path."""
-    with _backup_lock:
+    with _backup_lock, _interprocess_lock():
         config.ensure_dirs()
         password = get_or_create_password()
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = config.BACKUPS_DIR / f"{BACKUP_PREFIX}{stamp}.zip"
+        out_path = _archive_path()
+        part_path = out_path.with_name(f".{out_path.name}.part")
 
         db_bytes = _snapshot_db()
-        with pyzipper.AESZipFile(
-            out_path, "w",
-            compression=pyzipper.ZIP_DEFLATED,
-            encryption=pyzipper.WZ_AES,
-        ) as zf:
-            zf.setpassword(password.encode("utf-8"))
-            zf.writestr("discharge.db", db_bytes)
-            clinic_path = config.DATA_DIR / "clinic.json"
-            if clinic_path.exists():
-                zf.writestr("clinic.json", clinic_path.read_bytes())
-            if config.ATTACHMENTS_DIR.exists():
-                for file in sorted(config.ATTACHMENTS_DIR.iterdir()):
-                    if file.is_file():
-                        zf.write(file, f"attachments/{file.name}")
-            manifest = {
-                "created": datetime.now().isoformat(timespec="seconds"),
-                "app": "discharge-mnh",
-                "schema": "see alembic_version table inside discharge.db",
-            }
-            zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+        try:
+            with pyzipper.AESZipFile(
+                part_path, "w",
+                compression=pyzipper.ZIP_DEFLATED,
+                encryption=pyzipper.WZ_AES,
+            ) as zf:
+                zf.setpassword(password.encode("utf-8"))
+                zf.writestr("discharge.db", db_bytes)
+                clinic_path = config.DATA_DIR / "clinic.json"
+                if clinic_path.exists():
+                    zf.writestr("clinic.json", clinic_path.read_bytes())
+                if config.ATTACHMENTS_DIR.exists():
+                    for file in sorted(config.ATTACHMENTS_DIR.iterdir()):
+                        if file.is_file():
+                            zf.write(file, f"attachments/{file.name}")
+                manifest = {
+                    "created": datetime.now().isoformat(timespec="seconds"),
+                    "app": "discharge-mnh",
+                    "schema": "see alembic_version table inside discharge.db",
+                }
+                zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+            with open(part_path, "rb+") as handle:
+                os.fsync(handle.fileno())
+            os.replace(part_path, out_path)
+        except BaseException:
+            part_path.unlink(missing_ok=True)
+            raise
 
         _prune_old()
         logger.info("Backup written: %s (%.1f MB)", out_path,

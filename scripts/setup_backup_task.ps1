@@ -10,8 +10,17 @@
 param(
     [string]$Remote = "mnhpull@mnh-vps",
     [string]$Dest = "E:\clinic-backups",
-    [string]$At = "22:00"
+    [string]$At = "22:00",
+    [string]$KeyFile = "$env:USERPROFILE\.ssh\mnh_pull"
 )
+
+$ErrorActionPreference = "Stop"
+
+$principalCheck = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principalCheck.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Error "Run this from an elevated PowerShell (Run as administrator)."
+    exit 1
+}
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $script = Join-Path $projectRoot "scripts\pull_backup.ps1"
@@ -20,16 +29,26 @@ if (-not (Test-Path $script)) {
     Write-Error "pull_backup.ps1 not found at $script"
     exit 1
 }
+if (-not (Test-Path $KeyFile)) {
+    Write-Error "Pull key not found at $KeyFile. Create it first (docs/RUNBOOK.md, Restricted pull key)."
+    exit 1
+}
 
-$argLine = "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -Remote `"$Remote`" -Dest `"$Dest`""
+$keyPath = (Resolve-Path $KeyFile).Path
+$knownHosts = Join-Path (Split-Path -Parent $keyPath) "known_hosts_mnh"
+$argLine = "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -Remote `"$Remote`" -Dest `"$Dest`" -KeyFile `"$keyPath`" -KnownHostsFile `"$knownHosts`""
 
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $argLine -WorkingDirectory $projectRoot
 $trigger = New-ScheduledTaskTrigger -Daily -At $At
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopOnIdleEnd -RunOnlyIfNetworkAvailable
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -RunOnlyIfNetworkAvailable `
+    -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew
+$account = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+$principal = New-ScheduledTaskPrincipal -UserId $account -LogonType S4U -RunLevel Limited
 
 Register-ScheduledTask -TaskName "MNH Discharge Backup Pull" `
-    -Action $action -Trigger $trigger -Settings $settings `
-    -Description "Nightly pull of encrypted discharge-record backups from the VPS" -Force
+    -Action $action -Trigger $trigger -Settings $settings -Principal $principal `
+    -Description "Nightly pull of encrypted discharge-record backups from the VPS" -Force | Out-Null
 
-Write-Host "Scheduled task 'MNH Discharge Backup Pull' registered for $At daily."
-Write-Host "Archives land in $Dest. Run the task once now from Task Scheduler to confirm the key works."
+Write-Host "Scheduled task 'MNH Discharge Backup Pull' registered for $At daily as $account."
+Write-Host "It runs whether or not anyone is signed in to this PC, and wakes the PC if it is asleep."
+Write-Host "Archives land in $Dest. Run the task once now from Task Scheduler and check $Dest\pull_backup.log."

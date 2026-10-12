@@ -3,7 +3,7 @@
 Description=Nightly MNH Discharge Records backup
 
 [Timer]
-OnCalendar=*-*-* 21:30:00
+OnCalendar=*-*-* 21:30:00 Asia/Kolkata
 Persistent=true
 RandomizedDelaySec=300
 

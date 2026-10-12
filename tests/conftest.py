@@ -107,6 +107,23 @@ def _reset_login_throttle():
     auth.login_ip_throttle.reset()
 
 
+def clear_login_failures():
+    db = SessionLocal()
+    try:
+        db.query(models.LoginFailure).delete()
+        db.query(models.User).update({"failed_logins": 0, "locked_until": None})
+        db.commit()
+    finally:
+        db.close()
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_failures():
+    clear_login_failures()
+    yield
+    clear_login_failures()
+
+
 def make_record_payload(patient_id: int, **overrides) -> dict:
     payload = {
         "patient_id": patient_id,

@@ -6,6 +6,18 @@
 *.conf      text eol=lf
 Caddyfile   text eol=lf
 *.py        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.md        text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+*.js        text eol=lf
+*.json      text eol=lf
+*.ini       text eol=lf
+*.mako      text eol=lf
+*.lock      text eol=lf
+*.txt       text eol=lf
+*.log       text eol=lf
 *.ps1       text eol=crlf
 *.png binary
 *.jpg binary

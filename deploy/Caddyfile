@@ -1,8 +1,12 @@
-# Install: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# Install: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl restart caddy
 # Caddy obtains and renews the Let's Encrypt certificate itself as long as
 # the DNS A record for mnhapp.org points here and ports 80 + 443 are open.
 # Port 80 is used for the ACME challenge; everything else on it is
 # redirected to HTTPS by Caddy automatically.
+
+{
+    admin off
+}
 
 www.mnhapp.org {
     redir https://mnhapp.org{uri} permanent

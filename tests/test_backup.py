@@ -1,8 +1,14 @@
+import os
 import sqlite3
+import subprocess
+import sys
+import time
+from pathlib import Path
 
 import pyzipper
 import pytest
 
+from app import config
 from app.services import backup
 from tests.conftest import make_record_payload
 
@@ -116,3 +122,79 @@ def test_restore_contains_leading_slash_entries_inside_target(tmp_path):
     assert restored == ["etc/evil.txt"]
     assert (target / "etc" / "evil.txt").read_bytes() == b"payload"
     assert not (tmp_path / "evil.txt").exists()
+
+
+def _leftovers():
+    return sorted(
+        p.name for p in config.BACKUPS_DIR.iterdir()
+        if not (p.name.startswith(backup.BACKUP_PREFIX) and p.suffix == ".zip")
+    )
+
+
+def test_archives_appear_atomically_and_failures_leave_nothing(monkeypatch):
+    before = backup.list_backups()
+    archive = backup.create_backup()
+    assert archive in backup.list_backups()
+    assert _leftovers() == []
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(backup.json, "dumps", explode)
+    with pytest.raises(RuntimeError, match="disk full"):
+        backup.create_backup()
+    assert _leftovers() == []
+    assert len(backup.list_backups()) == len(before) + 1
+
+
+def _child_env():
+    return dict(
+        os.environ,
+        DISCHARGE_DATA_DIR=str(config.DATA_DIR),
+        DISCHARGE_BACKUP_DIR=str(config.BACKUPS_DIR),
+    )
+
+
+def test_backups_in_separate_processes_never_overlap():
+    root = Path(__file__).resolve().parent.parent
+    holder = subprocess.Popen(
+        [sys.executable, "-c", (
+            "import sys, time; sys.path.insert(0, sys.argv[1]); "
+            "from app.services import backup; "
+            "ctx = backup._interprocess_lock(); ctx.__enter__(); "
+            "print('locked', flush=True); time.sleep(2.5); ctx.__exit__(None, None, None)"
+        ), str(root)],
+        stdout=subprocess.PIPE, text=True, env=_child_env(),
+    )
+    try:
+        assert holder.stdout.readline().strip() == "locked"
+        started = time.monotonic()
+        backup.create_backup()
+        waited = time.monotonic() - started
+    finally:
+        holder.wait(timeout=30)
+    assert holder.returncode == 0
+    assert waited >= 1.5
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+def test_password_file_is_owner_only(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    backup.get_or_create_password()
+    mode = (tmp_path / "backup_password.txt").stat().st_mode & 0o777
+    assert mode == 0o600
+
+
+def test_restore_script_reads_the_password_from_a_file(tmp_path):
+    archive = backup.create_backup()
+    secret = tmp_path / "pw.txt"
+    secret.write_text(backup.get_or_create_password() + "\n", encoding="utf-8")
+    root = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [sys.executable, str(root / "scripts" / "restore_backup.py"), str(archive),
+         str(tmp_path / "out"), "--password-file", str(secret)],
+        capture_output=True, text=True, env=_child_env(),
+    )
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "out" / "discharge.db").exists()
+    assert backup.get_or_create_password() not in result.stdout + result.stderr

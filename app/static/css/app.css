@@ -812,6 +812,19 @@ button svg, a svg { flex: none; }
 }
 
 .record-row .r-actions { display: flex; gap: 6px; }
+.record-row.has-actions { position: relative; cursor: pointer; }
+.record-row .row-open {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.record-row .row-open:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.record-row.has-actions .r-actions { position: relative; z-index: 1; }
 .record-row .r-actions button { font-size: 13px; padding: 4px 10px; }
 
 /* ---------- Banners ---------- */

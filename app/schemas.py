@@ -138,6 +138,7 @@ class AuditPage(BaseModel):
     total: int
     limit: int
     offset: int
+    next_before_id: int | None = None
 RECORD_STATUSES = {"draft", "final"}
 TREATMENT_CATEGORIES = {"hospital", "discharge"}
 SIGN_VALUES = {"yes", "no"}
@@ -329,6 +330,17 @@ class MatchQuery(BaseModel):
     exclude_record_id: int | None = None
 
 
+class MatchRecord(BaseModel):
+    id: int
+    patient_id: int
+    patient_name: str
+    admission_date: datetime | None
+    discharge_date: datetime | None
+    diagnosis: str | None
+    advice: str | None
+    treatment_items: list[TreatmentItemOut] = []
+
+
 class MatchResult(BaseModel):
     score: float
-    record: RecordOut
+    record: MatchRecord

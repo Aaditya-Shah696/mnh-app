@@ -7,4 +7,5 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/bash /srv/mnh/app/scripts/autodeploy.sh
+ExecStart=/usr/local/lib/mnh/autodeploy.sh
+TimeoutStartSec=50min

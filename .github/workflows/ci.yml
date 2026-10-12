@@ -1,9 +1,11 @@
 # CI/CD for MNH Discharge Records.
 #
-# Every push and pull request: install the hashed lock, run pip-audit, run
-# the full test suite against the REAL embedding model (cached between runs).
+# Every push and pull request: lint the deploy scripts and validate the
+# server configuration with the real tools, install the hashed lock, run
+# pip-audit, run the full test suite against the REAL embedding model
+# (cached between runs).
 #
-# Push to main, tests green: fast-forward the `production` branch to the
+# Push to main, everything green: fast-forward the `production` branch to the
 # same commit. The VPS polls `production` every minute (deploy/mnh-autodeploy.timer)
 # and runs scripts/deploy.sh when it moves. The last job then waits until
 # https://mnhapp.org/api/health reports this commit, so a green check on
@@ -20,6 +22,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -29,14 +34,113 @@ env:
   PUBLIC_URL: https://mnhapp.org
 
 jobs:
+  server-config:
+    name: Deploy scripts and server config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Shell syntax
+        run: |
+          for script in scripts/*.sh; do
+            bash -n "$script"
+          done
+
+      - name: ShellCheck
+        run: |
+          shellcheck -x -P SCRIPTDIR --severity=warning \
+            scripts/deploy.sh scripts/autodeploy.sh scripts/vps_bootstrap.sh scripts/lockdown_ssh.sh \
+            tests/deploy/test_deploy_pipeline.sh
+
+      - name: Install caddy, fail2ban and sshd (same sources as the VPS)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q fail2ban python3-systemd openssh-server \
+            debian-keyring debian-archive-keyring apt-transport-https curl gnupg
+          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+            | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+            | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
+          sudo apt-get update -q
+          sudo apt-get install -y -q caddy
+
+      - name: Caddyfile validates (rendered and checked exactly as deploy.sh does)
+        run: |
+          sudo bash -c '
+            set -euo pipefail
+            . scripts/deploy_lib.sh
+            staged=$(mktemp -d)
+            render_system_files . "$staged"
+            validate_caddyfile "$staged/Caddyfile"
+            grep -qx "    admin off" "$staged/Caddyfile"
+          '
+
+      - name: fail2ban filter matches exactly the app's rejection lines
+        run: |
+          count_matches() {
+            fail2ban-regex "$1" deploy/fail2ban/filter.d/mnh-login.conf \
+              | awk '/^Lines:/ { for (i = 1; i < NF; i++) if ($(i + 1) ~ /^matched/) print $i }'
+          }
+          want=$(grep -c . tests/fixtures/fail2ban/mnh-login.match.log)
+          got=$(count_matches tests/fixtures/fail2ban/mnh-login.match.log)
+          echo "match fixture: $got of $want lines matched"
+          [ "$got" = "$want" ]
+          got=$(count_matches tests/fixtures/fail2ban/mnh-login.nomatch.log)
+          echo "no-match fixture: $got lines matched"
+          [ "$got" = "0" ]
+
+      - name: fail2ban accepts the jails
+        run: |
+          sudo install -m 644 deploy/fail2ban/jail.d/mnh.conf /etc/fail2ban/jail.d/mnh.conf
+          sudo install -m 644 deploy/fail2ban/filter.d/mnh-login.conf /etc/fail2ban/filter.d/mnh-login.conf
+          sudo fail2ban-client --test
+
+      - name: sshd accepts the hardening and the pull-user block
+        run: |
+          sudo install -d -m 755 /run/sshd
+          config=$(mktemp)
+          {
+            sed -n "/^cat > \/etc\/ssh\/sshd_config.d\/00-mnh.conf <<'EOF'$/,/^EOF$/p" scripts/vps_bootstrap.sh | sed '1d;$d'
+            cat /etc/ssh/sshd_config
+            echo
+            cat deploy/sshd/mnhpull.conf
+          } > "$config"
+          sudo sshd -t -f "$config"
+          global=$(sudo sshd -T -f "$config")
+          for want in "permitrootlogin no" "passwordauthentication no" "kbdinteractiveauthentication no"; do
+            grep -qx "$want" <<<"$global" || { echo "missing: $want"; exit 1; }
+          done
+          pull=$(sudo sshd -T -f "$config" -C user=mnhpull,host=clinic-pc,addr=100.64.0.1)
+          for want in "chrootdirectory /srv/mnh-backups" "forcecommand internal-sftp -R -d /archives" \
+              "allowtcpforwarding no" "permittty no" "x11forwarding no"; do
+            grep -qx "$want" <<<"$pull" || { echo "missing for mnhpull: $want"; exit 1; }
+          done
+
+      - name: Deploy, rollback, emergency deploy and signature checks end to end
+        run: sudo bash tests/deploy/test_deploy_pipeline.sh
+
+      - name: systemd accepts the units
+        run: |
+          units=$(mktemp -d)
+          for unit in deploy/*.service deploy/*.timer; do
+            cp "$unit" "$units/"
+          done
+          systemd-analyze verify --man=no "$units"/*.service "$units"/*.timer > "$units/verify.log" 2>&1 || true
+          cat "$units/verify.log"
+          if grep -Ei "unknown (key|section)|failed to parse|invalid|bad-setting|syntax error" "$units/verify.log"; then
+            exit 1
+          fi
+          systemd-analyze calendar "*-*-* 21:30:00 Asia/Kolkata"
+
   test:
     name: Test (real embedding model)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -49,7 +153,7 @@ jobs:
         run: pip-audit -r requirements.lock --require-hashes --progress-spinner off
 
       - name: Cache the embedding model
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.cache/fastembed
           key: fastembed-bge-small-en-v1.5-${{ runner.os }}
@@ -65,16 +169,16 @@ jobs:
 
   promote:
     name: Promote main to production
-    needs: test
+    needs: [server-config, test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: write
     outputs:
       skipped: ${{ steps.promote.outputs.skipped }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
 
@@ -102,8 +206,9 @@ jobs:
     # Skipped when promote found production already past this commit (a
     # re-run of an old workflow run); verifying an old SHA would just fail.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.promote.outputs.skipped != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
+    permissions: {}
     steps:
       - name: Poll /api/health until version == ${{ github.sha }}
         run: |

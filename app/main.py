@@ -16,7 +16,9 @@ from .services import backup, embeddings
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+LOG_FORMAT = "%(levelname)s %(name)s: %(message)s"
+
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 
 
 @asynccontextmanager

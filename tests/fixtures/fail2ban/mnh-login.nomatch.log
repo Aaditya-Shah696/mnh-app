@@ -1,0 +1,7 @@
+mnh-vps mnh[812]: INFO:     203.0.113.9:51234 - "POST /api/auth/login?x=1 HTTP/1.1" 401 Unauthorized
+mnh-vps mnh[812]: INFO:     198.51.100.1:5120 - "GET /WARNING mnh.security: login rejected from 203.0.113.9 HTTP/1.1" 404 Not Found
+mnh-vps mnh[812]: INFO mnh.security: login rejected from 203.0.113.9
+mnh-vps mnh[812]: WARNING app.auth: login rejected from 203.0.113.9
+mnh-vps mnh[812]: WARNING mnh.security: login rejected from 203.0.113.9 by 198.51.100.1
+mnh-vps mnh[812]: WARNING mnh.security: login rejected from testclient
+mnh-vps mnh[812]: INFO app.auth: Pruned 3 dead sessions

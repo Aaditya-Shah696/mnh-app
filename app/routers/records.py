@@ -11,6 +11,7 @@ from .. import auth, models, schemas
 from ..audit import audit, changed_fields
 from ..database import get_db
 from ..models import utcnow
+from ..querying import contains_pattern
 from ..services import embeddings, pdf_export
 from .patients import get_patient_or_404
 
@@ -113,9 +114,9 @@ def list_records(
         .limit(limit)
     )
     if q:
-        like = f"%{q.strip()}%"
+        like = contains_pattern(q.strip())
         stmt = stmt.join(models.DischargeRecord.patient).where(
-            models.Patient.name.ilike(like)
+            models.Patient.name.ilike(like, escape="\\")
         )
     return [_summary(r) for r in db.scalars(stmt).all()]
 

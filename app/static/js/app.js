@@ -86,6 +86,29 @@ function showError(id, message) {
   node.classList.toggle("hidden", !message);
 }
 
+async function withBusy(button, task) {
+  if (!button || button.disabled) return undefined;
+  button.disabled = true;
+  try {
+    return await task();
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function guardedSubmit(form, task) {
+  if (form.dataset.busy === "1") return;
+  form.dataset.busy = "1";
+  const buttons = form.querySelectorAll('button[type="submit"]');
+  buttons.forEach((b) => { b.disabled = true; });
+  try {
+    await task();
+  } finally {
+    delete form.dataset.busy;
+    buttons.forEach((b) => { b.disabled = false; });
+  }
+}
+
 /* ---------- API ---------- */
 
 async function api(path, options) {
@@ -123,6 +146,7 @@ async function api(path, options) {
 
 const state = {
   user: null,           // logged-in user from /api/auth/me
+  previousUser: null,
   booted: false,        // app views wired up (once, after first login)
   recordId: null,       // saved record id, null = unsaved new record
   recordDeleted: false, // editor is showing a soft-deleted record (read-only)
@@ -134,7 +158,7 @@ const state = {
   lastMatchKey: "",
   matchRequestSeq: 0,    // guards against out-of-order responses overwriting newer ones
   matchPanelCollapsed: localStorage.getItem("mnh:matchPanelCollapsed") === "1",
-  audit: { offset: 0, total: 0, params: {} },
+  audit: { shown: 0, nextBeforeId: null, params: {}, loading: false, seq: 0 },
 };
 
 const isAdmin = () => Boolean(state.user && state.user.role === "admin");
@@ -166,7 +190,13 @@ function setUser(user) {
   document.querySelectorAll(".admin-only").forEach((node) => node.classList.toggle("hidden", !admin));
 }
 
+function setBackgroundInert(inert) {
+  $("appbar").inert = inert;
+  $("page").inert = inert;
+}
+
 function showLogin(resume) {
+  document.querySelectorAll("dialog[open]").forEach((dlg) => dlg.close());
   $("login-resume").classList.toggle("hidden", !resume);
   showError("login-error", "");
   $("login-password").value = "";
@@ -174,13 +204,17 @@ function showLogin(resume) {
     $("appbar").classList.add("hidden");
     $("page").classList.add("hidden");
     $("login-username").value = "";
+  } else if (state.previousUser && !$("login-username").value) {
+    $("login-username").value = state.previousUser.username;
   }
+  setBackgroundInert(true);
   $("login-overlay").classList.remove("hidden");
   ($("login-username").value ? $("login-password") : $("login-username")).focus();
 }
 
 function hideLogin() {
   $("login-overlay").classList.add("hidden");
+  setBackgroundInert(false);
   $("appbar").classList.remove("hidden");
   $("page").classList.remove("hidden");
 }
@@ -188,11 +222,20 @@ function hideLogin() {
 function handleUnauthenticated() {
   const wasSignedIn = Boolean(state.user);
   if (wasSignedIn) {
+    state.previousUser = { id: state.user.id, username: state.user.username };
     state.user = null;
     showLogin(true);
   } else if ($("login-overlay").classList.contains("hidden")) {
     showLogin(false);
   }
+}
+
+function bootErrorMessage(err) {
+  if (err && err.status) {
+    return "The server could not check your session (" + err.message +
+      "). Wait a minute, then sign in or reload the page.";
+  }
+  return "Could not reach the server. Check the internet connection, then reload the page.";
 }
 
 async function submitLogin(event) {
@@ -209,9 +252,7 @@ async function submitLogin(event) {
   try {
     user = await api("/api/auth/login", { json: { username, password } });
   } catch (err) {
-    showError("login-error", err.status === 429
-      ? "Too many attempts from this device. Wait ten minutes and try again."
-      : err.message);
+    showError("login-error", err.status ? err.message : bootErrorMessage(err));
     $("login-password").value = "";
     $("login-password").focus();
     return;
@@ -219,6 +260,11 @@ async function submitLogin(event) {
     $("login-submit").disabled = false;
   }
   const resuming = !$("login-resume").classList.contains("hidden");
+  if (resuming && state.previousUser && user.id !== state.previousUser.id) {
+    state.dirty = false;
+    location.replace("/");
+    return;
+  }
   setUser(user);
   hideLogin();
   if (!state.booted) {
@@ -231,11 +277,21 @@ async function submitLogin(event) {
 }
 
 async function logout() {
-  try { await api("/api/auth/logout", { method: "POST" }); } catch (_) { /* cookie cleared anyway */ }
-  state.user = null;
-  state.dirty = false;
-  location.hash = "";
-  showLogin(false);
+  const editing = !$("view-editor").classList.contains("hidden");
+  if (editing && state.dirty) {
+    const ok = await confirmDialog(
+      "Discard unsaved changes?",
+      "This discharge form has changes that are not saved. Signing out now throws them away.",
+      "Sign out anyway", true,
+    );
+    if (!ok) return;
+  }
+  await withBusy($("btn-logout"), async () => {
+    try { await api("/api/auth/logout", { method: "POST" }); } catch (_) { }
+    state.user = null;
+    state.dirty = false;
+    location.replace("/");
+  });
 }
 
 async function submitPasswordChange(event) {
@@ -244,14 +300,16 @@ async function submitPasswordChange(event) {
   const fresh = $("pw-new").value;
   if (fresh.length < 12) { showError("pw-error", "New password must be at least 12 characters."); return; }
   if (fresh !== $("pw-repeat").value) { showError("pw-error", "The new passwords do not match."); return; }
-  try {
-    await api("/api/auth/password", { json: { current_password: current, new_password: fresh } });
-  } catch (err) {
-    showError("pw-error", err.message);
-    return;
-  }
-  $("dlg-password").close();
-  toast("Password changed. Other devices were signed out.");
+  await guardedSubmit($("form-password"), async () => {
+    try {
+      await api("/api/auth/password", { json: { current_password: current, new_password: fresh } });
+    } catch (err) {
+      showError("pw-error", err.message);
+      return;
+    }
+    $("dlg-password").close();
+    toast("Password changed. Other devices were signed out.");
+  });
 }
 
 /* ---------- Dialog helpers ---------- */
@@ -351,8 +409,17 @@ function restoreButton(label, onclick) {
   return el("span", { class: "r-actions" },
     el("button", {
       class: "btn-secondary", type: "button",
-      onclick: (e) => { e.stopPropagation(); onclick(); },
+      onclick: (e) => { e.stopPropagation(); withBusy(e.currentTarget, onclick); },
     }, label));
+}
+
+function listRow(deleted, openLabel, onOpen, ...cells) {
+  if (!deleted) {
+    return el("button", { class: "record-row", type: "button", onclick: onOpen }, ...cells);
+  }
+  return el("div", { class: "record-row is-deleted has-actions" },
+    el("button", { class: "row-open", type: "button", "aria-label": openLabel, onclick: onOpen }),
+    ...cells);
 }
 
 async function loadRecordList(query) {
@@ -386,10 +453,8 @@ async function loadRecordList(query) {
     return;
   }
   list.replaceChildren(...records.map((r) =>
-    el("button", {
-      class: "record-row" + (r.deleted_at ? " is-deleted" : ""), type: "button",
-      onclick: () => navigate("#/record/" + r.id),
-    },
+    listRow(Boolean(r.deleted_at), "Open deleted record for " + r.patient_name,
+      () => navigate("#/record/" + r.id),
       el("span", { class: "r-name", text: r.patient_name }),
       el("span", { class: "r-dx", text: r.diagnosis || "No diagnosis recorded" }),
       r.deleted_at
@@ -438,10 +503,8 @@ async function loadPatientList(query) {
     return;
   }
   list.replaceChildren(...patients.map((p) =>
-    el("button", {
-      class: "record-row" + (p.deleted_at ? " is-deleted" : ""), type: "button",
-      onclick: () => navigate("#/patient/" + p.id),
-    },
+    listRow(Boolean(p.deleted_at), "Open deleted patient " + p.name,
+      () => navigate("#/patient/" + p.id),
       el("span", { class: "r-name", text: p.name }),
       el("span", {
         class: "r-dx",
@@ -1032,7 +1095,7 @@ function renderMatchItem(result) {
   const when = fmtDate(record.discharge_date || record.admission_date);
   return el("div", { class: "match-item" },
     el("div", { class: "m-head" },
-      el("span", { class: "m-name", text: record.patient.name + (when ? " · " + when : "") }),
+      el("span", { class: "m-name", text: record.patient_name + (when ? " · " + when : "") }),
       el("span", { class: "m-score", text: Math.round(result.score * 100) + "%" }),
     ),
     el("div", { class: "m-dx", text: record.diagnosis || "No diagnosis recorded" }),
@@ -1082,7 +1145,10 @@ function copyTreatment(record) {
 function userStatus(u) {
   if (!u.is_active) return el("span", { class: "chip chip-deleted", text: "Inactive" });
   if (u.locked_until && new Date(u.locked_until + "Z") > new Date()) {
-    return el("span", { class: "chip chip-draft", text: "Locked until " + fmtDateTime(u.locked_until) });
+    return el("span", {
+      class: "chip chip-draft", text: "Locked until " + fmtDateTime(u.locked_until),
+      title: "Too many failed sign-ins from at least one device. Unlock clears every block.",
+    });
   }
   return el("span", { class: "chip chip-ok", text: "Active" });
 }
@@ -1107,24 +1173,26 @@ async function showUsers() {
       const actions = el("div", { class: "row-actions" },
         el("button", { class: "btn-secondary", type: "button", onclick: () => openResetDialog(u) }, "Reset password"),
         u.locked_until ? el("button", {
-          class: "btn-secondary", type: "button", onclick: () => patchUser(u, { unlock: true }, "Account unlocked"),
+          class: "btn-secondary", type: "button",
+          onclick: (e) => withBusy(e.currentTarget, () => patchUser(u, { unlock: true }, "Account unlocked")),
         }, "Unlock") : null,
         self ? null : el("button", {
           class: "btn-secondary", type: "button",
-          onclick: () => patchUser(u, { role: u.role === "admin" ? "staff" : "admin" },
-            u.role === "admin" ? "Now staff" : "Now an administrator"),
+          onclick: (e) => withBusy(e.currentTarget, () => patchUser(u,
+            { role: u.role === "admin" ? "staff" : "admin" },
+            u.role === "admin" ? "Now staff" : "Now an administrator")),
         }, u.role === "admin" ? "Make staff" : "Make admin"),
         self ? null : el("button", {
           class: u.is_active ? "btn-danger-ghost" : "btn-secondary", type: "button",
-          onclick: async () => {
+          onclick: (e) => withBusy(e.currentTarget, async () => {
             if (u.is_active) {
               const ok = await confirmDialog("Deactivate " + u.display_name + "?",
                 "They are signed out everywhere immediately and cannot sign in again until reactivated. Their name stays on every record and audit entry.",
                 "Deactivate", true);
               if (!ok) return;
             }
-            patchUser(u, { is_active: !u.is_active }, u.is_active ? "User deactivated" : "User reactivated");
-          },
+            await patchUser(u, { is_active: !u.is_active }, u.is_active ? "User deactivated" : "User reactivated");
+          }),
         }, u.is_active ? "Deactivate" : "Reactivate"),
       );
       return el("tr", {},
@@ -1160,15 +1228,17 @@ async function submitNewUser(event) {
     password: $("u-password").value,
   };
   if (payload.password.length < 12) { showError("u-error", "Temporary password must be at least 12 characters."); return; }
-  try {
-    await api("/api/users", { json: payload });
-  } catch (err) {
-    showError("u-error", err.message);
-    return;
-  }
-  $("dlg-user").close();
-  toast("User " + payload.username + " created");
-  showUsers();
+  await guardedSubmit($("form-user"), async () => {
+    try {
+      await api("/api/users", { json: payload });
+    } catch (err) {
+      showError("u-error", err.message);
+      return;
+    }
+    $("dlg-user").close();
+    toast("User " + payload.username + " created");
+    showUsers();
+  });
 }
 
 let resetTarget = null;
@@ -1185,15 +1255,18 @@ async function submitResetPassword(event) {
   if (!resetTarget) return;
   const pw = $("reset-password").value;
   if (pw.length < 12) { showError("reset-error", "Password must be at least 12 characters."); return; }
-  try {
-    await api("/api/users/" + resetTarget.id + "/reset-password", { json: { new_password: pw } });
-  } catch (err) {
-    showError("reset-error", err.message);
-    return;
-  }
-  $("dlg-reset").close();
-  toast("Password reset for " + resetTarget.username);
-  showUsers();
+  const target = resetTarget;
+  await guardedSubmit($("form-reset"), async () => {
+    try {
+      await api("/api/users/" + target.id + "/reset-password", { json: { new_password: pw } });
+    } catch (err) {
+      showError("reset-error", err.message);
+      return;
+    }
+    $("dlg-reset").close();
+    toast("Password reset for " + target.username);
+    showUsers();
+  });
 }
 
 /* ---------- Audit log (admin) ---------- */
@@ -1223,14 +1296,16 @@ function auditParams() {
   const p = {};
   const username = $("audit-username").value.trim().toLowerCase();
   const action = $("audit-action").value;
+  const entityType = $("audit-entity-type").value;
   const entityId = $("audit-entity-id").value.trim();
   const since = $("audit-since").value;
   const until = $("audit-until").value;
   if (username) p.username = username;
   if (action) p.action = action;
+  if (entityType) p.entity_type = entityType;
   if (entityId && /^\d+$/.test(entityId)) p.entity_id = entityId;
-  if (since) p.since = since + "T00:00:00";
-  if (until) p.until = until + "T23:59:59";
+  if (since) p.since = new Date(since + "T00:00:00").toISOString();
+  if (until) p.until = new Date(until + "T23:59:59.999").toISOString();
   return p;
 }
 
@@ -1242,22 +1317,36 @@ function describeDetail(detail) {
 
 async function loadAudit(reset) {
   const host = $("audit-table");
+  const more = $("btn-audit-more");
+  if (!reset && (state.audit.loading || state.audit.nextBeforeId === null)) return;
   if (reset) {
-    state.audit.offset = 0;
+    state.audit.seq += 1;
+    state.audit.shown = 0;
+    state.audit.nextBeforeId = null;
     state.audit.params = auditParams();
     host.replaceChildren(el("div", { class: "skeleton-row" }), el("div", { class: "skeleton-row" }));
   }
+  const seq = state.audit.seq;
   const params = new URLSearchParams(state.audit.params);
   params.set("limit", "100");
-  params.set("offset", String(state.audit.offset));
+  if (!reset) params.set("before_id", String(state.audit.nextBeforeId));
+  state.audit.loading = true;
+  more.disabled = true;
   let page;
   try {
     page = await api("/api/audit?" + params.toString());
   } catch (err) {
-    host.replaceChildren(el("div", { class: "empty-state", text: "Could not load audit log: " + err.message }));
+    if (seq === state.audit.seq) {
+      host.replaceChildren(el("div", { class: "empty-state", text: "Could not load audit log: " + err.message }));
+    }
     return;
+  } finally {
+    if (seq === state.audit.seq) {
+      state.audit.loading = false;
+      more.disabled = false;
+    }
   }
-  state.audit.total = page.total;
+  if (seq !== state.audit.seq) return;
   const rows = page.items.map((r) => el("tr", {},
     el("td", { text: fmtDateTime(r.ts) }),
     el("td", { class: "mono", text: r.username || "—" }),
@@ -1272,7 +1361,7 @@ async function loadAudit(reset) {
       host.replaceChildren(el("div", { class: "empty-state" },
         el("div", { class: "e-title", text: "No audit entries match" })));
       $("audit-count").textContent = "";
-      $("btn-audit-more").classList.add("hidden");
+      more.classList.add("hidden");
       return;
     }
     const table = el("table", { class: "data" },
@@ -1284,9 +1373,10 @@ async function loadAudit(reset) {
   } else {
     tbody.append(...rows);
   }
-  state.audit.offset += page.items.length;
-  $("audit-count").textContent = state.audit.offset + " of " + page.total + " entries";
-  $("btn-audit-more").classList.toggle("hidden", state.audit.offset >= page.total);
+  state.audit.shown += page.items.length;
+  state.audit.nextBeforeId = page.next_before_id;
+  $("audit-count").textContent = state.audit.shown + " of " + page.total + " entries";
+  more.classList.toggle("hidden", page.next_before_id === null);
 }
 
 /* ---------- Wire-up ---------- */
@@ -1307,8 +1397,8 @@ function startApp() {
   });
   $("btn-save").addEventListener("click", saveRecord);
   $("btn-delete-record").addEventListener("click", deleteRecord);
-  $("btn-restore-record").addEventListener("click", () => {
-    if (state.recordId !== null) restoreRecord(state.recordId);
+  $("btn-restore-record").addEventListener("click", (e) => {
+    if (state.recordId !== null) withBusy(e.currentTarget, () => restoreRecord(state.recordId));
   });
   $("home-search").addEventListener("input", debounce(() => {
     loadRecordList($("home-search").value.trim());
@@ -1324,8 +1414,8 @@ function startApp() {
   });
   $("btn-save-patient").addEventListener("click", savePatientProfile);
   $("btn-delete-patient").addEventListener("click", deletePatient);
-  $("btn-restore-patient").addEventListener("click", () => {
-    if (state.profilePatient) restorePatient(state.profilePatient.id);
+  $("btn-restore-patient").addEventListener("click", (e) => {
+    if (state.profilePatient) withBusy(e.currentTarget, () => restorePatient(state.profilePatient.id));
   });
 
   $("btn-add-hospital").addEventListener("click", () => { addTxRow("tx-hospital").querySelector("input").focus(); markDirty(); });
@@ -1348,6 +1438,7 @@ function startApp() {
   $("btn-audit-clear").addEventListener("click", () => {
     ["audit-username", "audit-entity-id", "audit-since", "audit-until"].forEach((id) => { $(id).value = ""; });
     $("audit-action").value = "";
+    $("audit-entity-type").value = "";
     loadAudit(true);
   });
   $("btn-audit-more").addEventListener("click", () => loadAudit(false));
@@ -1385,15 +1476,19 @@ async function init() {
   }).catch(() => { /* header falls back to defaults */ });
 
   let user = null;
+  let bootError = null;
   try {
     user = await api("/api/auth/me");
-  } catch (_) { /* 401: handleUnauthenticated already showed the login */ }
+  } catch (err) {
+    if (err.status !== 401) bootError = err;
+  }
   if (user) {
     setUser(user);
     hideLogin();
     startApp();
   } else {
     showLogin(false);
+    if (bootError) showError("login-error", bootErrorMessage(bootError));
   }
 }
 
