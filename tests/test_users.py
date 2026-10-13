@@ -2,7 +2,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
-from tests.conftest import ADMIN, login
+from tests.conftest import login
 
 
 def _new_user(client, username, role="staff", password="a-fine-password-123"):

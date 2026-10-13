@@ -222,8 +222,9 @@ def require_admin(user: models.User = Depends(current_user)) -> models.User:
 
 # ---------- Brute-force protection ----------
 
-class _IpThrottle:
-    """Sliding-window counter per IP, in-process. One worker, so this is exact."""
+class SlidingWindowLimiter:
+    """Sliding-window counter per key (an IP, a user id), in-process. One
+    worker, so this is exact."""
 
     def __init__(self, limit: int, window_seconds: float) -> None:
         self.limit = limit
@@ -231,9 +232,9 @@ class _IpThrottle:
         self._hits: dict[str, deque[float]] = {}
         self._lock = threading.Lock()
 
-    def check(self, ip: str | None) -> bool:
-        """Record an attempt; returns False if this IP is over the limit."""
-        key = ip or "unknown"
+    def check(self, key: str | None) -> bool:
+        """Record an attempt; returns False if this key is over the limit."""
+        key = key or "unknown"
         now = time.monotonic()
         with self._lock:
             q = self._hits.setdefault(key, deque())
@@ -253,7 +254,7 @@ class _IpThrottle:
             self._hits.clear()
 
 
-login_ip_throttle = _IpThrottle(config.LOGIN_IP_LIMIT, config.LOGIN_IP_WINDOW_SECONDS)
+login_ip_throttle = SlidingWindowLimiter(config.LOGIN_IP_LIMIT, config.LOGIN_IP_WINDOW_SECONDS)
 
 
 _attempt_locks = tuple(threading.Lock() for _ in range(64))

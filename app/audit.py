@@ -21,7 +21,7 @@ ACTIONS = (
     "password.change",
     "patient.create", "patient.update", "patient.view", "patient.delete", "patient.restore",
     "record.create", "record.update", "record.finalize", "record.view", "record.pdf",
-    "record.delete", "record.restore",
+    "record.delete", "record.restore", "record.draft", "record.search",
     "backup.create",
     "user.create", "user.update", "user.deactivate", "user.activate",
     "user.unlock", "user.reset_password",

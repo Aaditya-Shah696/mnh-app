@@ -20,11 +20,11 @@ def test_deleted_record_hidden_from_get_list_pdf_and_match(client, patient):
     assert match.status_code == 200
     assert all(m["record"]["id"] != rid for m in match.json())
 
-    # The row is still in the database with its embedding.
+    # The row is still in the database with its vectors.
     db = SessionLocal()
     try:
         row = db.get(models.DischargeRecord, rid)
-        assert row is not None and row.deleted_at is not None and row.embedding is not None
+        assert row is not None and row.deleted_at is not None and row.vectors
     finally:
         db.close()
 

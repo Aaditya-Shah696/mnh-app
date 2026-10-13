@@ -7,12 +7,12 @@ from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .. import auth, models, schemas
+from .. import auth, config, models, schemas
 from ..audit import audit, changed_fields
 from ..database import get_db
 from ..models import utcnow
 from ..querying import contains_pattern
-from ..services import embeddings, pdf_export
+from ..services import codes, embeddings, pdf_export, search
 from .patients import get_patient_or_404
 
 router = APIRouter(
@@ -37,8 +37,15 @@ def get_record_or_404(
 
 
 def _apply_fields(record: models.DischargeRecord, fields: schemas.RecordFields) -> list[str]:
-    """Set the scalar fields; returns the names of the ones that changed."""
-    after = fields.model_dump(exclude={"treatment_items", "patient_id"})
+    """Set the scalar fields and diagnosis codes; returns the names of the
+    ones that changed. Unknown codes are a 422."""
+    after = fields.model_dump(exclude={"treatment_items", "patient_id", "diagnosis_codes"})
+    try:
+        after["diagnosis_codes"] = codes.resolve(
+            [c.code for c in fields.diagnosis_codes], limit=config.MAX_DIAGNOSIS_CODES,
+        ) or None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     before = {k: getattr(record, k) for k in after}
     for key, value in after.items():
         setattr(record, key, value)
@@ -83,13 +90,60 @@ def create_record(
     _replace_treatment_items(record, payload.treatment_items)
     db.add(record)
     db.flush()
-    embeddings.refresh_record_embedding(record)
+    embeddings.refresh_record_vectors(record)
+    search.index_records(db, [record.id])
     audit(db, "record.create", request=request, user=user, entity_type="record",
           entity_id=record.id,
           detail={"patient_id": record.patient_id, "status": record.status,
                   "treatment_items": len(record.treatment_items)})
     db.commit()
     return get_record_or_404(record.id, db)
+
+
+@router.post("/duplicate-check", response_model=schemas.DuplicateCheckOut)
+def duplicate_check(payload: schemas.DuplicateCheck, db: Session = Depends(get_db)):
+    """Advisory check before saving a new record: does this patient already
+    have a live record admitted the same day, or a near-identical one
+    admitted within config.DUPLICATE_WINDOW_DAYS? Catches double entry from
+    two devices or a half-saved draft. Nothing is blocked server-side."""
+    patient = get_patient_or_404(payload.patient_id, db)
+    others = {r.id: r for r in patient.active_records if r.id != payload.record_id}
+    found: dict[int, dict] = {}
+    admitted = payload.admission_date
+
+    if admitted is not None:
+        for r in others.values():
+            if r.admission_date is not None and r.admission_date.date() == admitted.date():
+                found[r.id] = {"reasons": ["same_admission_date"], "similarity": None}
+
+    note = None
+    summary = embeddings.section_texts(payload).get("summary")
+    if summary and others:
+        try:
+            ranked = embeddings.rank_similar(
+                db, embeddings.embed_text(summary), limit=len(others),
+                exclude_record_id=payload.record_id,
+                where=(models.DischargeRecord.patient_id == patient.id,),
+            )
+        except (embeddings.EmbeddingUnavailable, embeddings.EmbeddingMismatch) as exc:
+            ranked = []
+            note = f"Content comparison unavailable: {exc}"
+        for record_id, score in ranked:
+            if score < config.DUPLICATE_SIMILARITY or record_id not in others:
+                continue
+            r = others[record_id]
+            if (admitted is not None and r.admission_date is not None
+                    and abs((admitted - r.admission_date).days) > config.DUPLICATE_WINDOW_DAYS):
+                continue
+            entry = found.setdefault(record_id, {"reasons": [], "similarity": None})
+            entry["reasons"].append("near_identical")
+            entry["similarity"] = score
+
+    candidates = [
+        schemas.DuplicateCandidate(record=_summary(others[rid]), **info)
+        for rid, info in sorted(found.items(), key=lambda kv: -(kv[1]["similarity"] or 1.0))
+    ]
+    return schemas.DuplicateCheckOut(candidates=candidates, note=note)
 
 
 @router.get("", response_model=list[schemas.RecordSummary])
@@ -148,7 +202,9 @@ def update_record(
     changed = _apply_fields(record, payload)
     _replace_treatment_items(record, payload.treatment_items)
     record.updated_by = user.id
-    embeddings.refresh_record_embedding(record)
+    embeddings.refresh_record_vectors(record)
+    db.flush()
+    search.index_records(db, [record.id])
     audit(db, "record.update", request=request, user=user, entity_type="record",
           entity_id=record.id,
           detail={"fields": changed, "treatment_items": len(record.treatment_items)})

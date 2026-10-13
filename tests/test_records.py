@@ -104,9 +104,11 @@ def test_embedding_stored_on_save(client, patient):
     db = SessionLocal()
     try:
         row = db.get(models.DischargeRecord, rid)
-        assert row.embedding is not None
-        assert len(row.embedding) % 4 == 0 and len(row.embedding) >= 4 * 128
-        assert row.embedding_model
+        vectors = {v.section: v for v in row.vectors}
+        assert set(vectors) == {"summary", "examination", "investigations", "course"}
+        for v in vectors.values():
+            assert len(v.vector) % 4 == 0 and len(v.vector) >= 4 * 128
+            assert v.model and len(v.text_hash) == 64
     finally:
         db.close()
     client.delete(f"/api/records/{rid}")

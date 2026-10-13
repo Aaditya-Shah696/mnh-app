@@ -74,10 +74,18 @@
         <label class="check-pill admin-only hidden" id="home-deleted-wrap">
           <input type="checkbox" id="home-show-deleted">Show deleted
         </label>
+        <select id="home-search-section" class="search-section" aria-label="Search in">
+          <option value="any">All fields</option>
+          <option value="diagnosis">Diagnosis &amp; history</option>
+          <option value="examination">Examination</option>
+          <option value="investigations">Investigations</option>
+          <option value="course">Course in hospital</option>
+          <option value="medicines">Medicines</option>
+        </select>
         <div class="search-box">
           <span class="search-icon" data-icon="search"></span>
-          <input type="search" id="home-search" placeholder="Search patient name"
-                 aria-label="Search patient name">
+          <input type="search" id="home-search" placeholder="Name, diagnosis, drug, finding…"
+                 aria-label="Search records by name, words or meaning">
         </div>
       </div>
     </div>
@@ -329,6 +337,16 @@
             <div class="field col-12">
               <label for="f-diagnosis">Diagnosis</label>
               <textarea id="f-diagnosis" rows="2"></textarea>
+              <div class="dx-codes">
+                <div class="dx-codes-head">
+                  <span class="dx-codes-label">ICD-10-CM codes</span>
+                  <input type="search" id="dx-code-search" class="dx-code-search"
+                         placeholder="Search codes, or type one (e.g. J18.9)"
+                         aria-label="Search ICD-10-CM codes">
+                </div>
+                <div class="dx-chips" id="dx-chips"></div>
+                <div class="dx-suggest" id="dx-suggest" aria-live="polite"></div>
+              </div>
             </div>
             <div class="field col-12">
               <label for="f-history">History</label>
@@ -339,8 +357,30 @@
               <textarea id="f-investigations" rows="2"></textarea>
             </div>
             <div class="field col-12">
-              <label for="f-course_in_hospital">Course in hospital</label>
+              <div class="label-row">
+                <label for="f-course_in_hospital">Course in hospital</label>
+                <button type="button" class="btn-ghost btn-compact hidden" id="btn-draft-course"
+                        title="Draft this section from the record with AI, for you to review">
+                  <span data-icon="sparkle"></span><span id="btn-draft-course-label">Draft with AI</span>
+                </button>
+              </div>
               <textarea id="f-course_in_hospital" rows="2"></textarea>
+              <div class="draft-panel hidden" id="draft-panel" aria-live="polite">
+                <div class="draft-head">
+                  <span class="draft-title">AI draft</span>
+                  <span class="draft-sub">Check every sentence against the record before using it.</span>
+                </div>
+                <p class="draft-text" id="draft-text"></p>
+                <div class="draft-missing hidden" id="draft-missing">
+                  <div class="draft-missing-title">Not in the record. Add these yourself if they apply:</div>
+                  <ul id="draft-missing-list"></ul>
+                </div>
+                <div class="draft-meta" id="draft-meta"></div>
+                <div class="draft-actions">
+                  <button type="button" class="btn-primary" id="btn-draft-use">Use this draft</button>
+                  <button type="button" class="btn-ghost" id="btn-draft-discard">Discard</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

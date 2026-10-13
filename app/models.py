@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, DDL, ForeignKey, Integer, LargeBinary, String, Text, event,
+    JSON, Boolean, Date, DateTime, DDL, ForeignKey, Integer, LargeBinary, String, Text, event,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -152,6 +152,9 @@ class DischargeRecord(Base):
 
     # Clinical block
     diagnosis: Mapped[str | None] = mapped_column(Text)
+    # ICD-10-CM codes chosen for the diagnosis: [{"code": "A09", "title": "..."}],
+    # titles as they read in the code list when the code was chosen.
+    diagnosis_codes: Mapped[list | None] = mapped_column(JSON)
     history: Mapped[str | None] = mapped_column(Text)
     examination_findings: Mapped[str | None] = mapped_column(Text)  # "General examination"
 
@@ -189,10 +192,6 @@ class DischargeRecord(Base):
 
     status: Mapped[str] = mapped_column(String(10), default="draft")  # draft | final
 
-    # Recommender: embedding of diagnosis + history + treatment text
-    embedding: Mapped[bytes | None] = mapped_column(LargeBinary)
-    embedding_model: Mapped[str | None] = mapped_column(String(100))
-
     # Soft delete (see Patient.deleted_at). Deleted records are hidden from
     # lists, profiles and the similar-case matcher.
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
@@ -206,6 +205,9 @@ class DischargeRecord(Base):
     patient: Mapped[Patient] = relationship(back_populates="records")
     treatment_items: Mapped[list["TreatmentItem"]] = relationship(
         back_populates="record", cascade="all, delete-orphan", order_by="TreatmentItem.position"
+    )
+    vectors: Mapped[list["RecordVector"]] = relationship(
+        back_populates="record", cascade="all, delete-orphan"
     )
 
 
@@ -226,3 +228,29 @@ class TreatmentItem(Base):
     position: Mapped[int] = mapped_column(Integer, default=0)
 
     record: Mapped[DischargeRecord] = relationship(back_populates="treatment_items")
+
+
+# Sections a record is embedded by (see app/services/embeddings.py).
+VECTOR_SECTIONS = ("summary", "examination", "investigations", "course")
+
+
+class RecordVector(Base):
+    """One embedding per record per section: the vector store.
+
+    "summary" (diagnosis + history + treatment) drives similar cases and AI
+    drafting; the others let search target one part of the card. text_hash
+    is the SHA-256 of the exact text embedded, so unchanged sections are not
+    re-embedded and stale vectors are detectable.
+    """
+    __tablename__ = "record_vectors"
+
+    record_id: Mapped[int] = mapped_column(
+        ForeignKey("discharge_records.id", ondelete="CASCADE"), primary_key=True
+    )
+    section: Mapped[str] = mapped_column(String(20), primary_key=True)
+    model: Mapped[str] = mapped_column(String(100))
+    text_hash: Mapped[str] = mapped_column(String(64))
+    vector: Mapped[bytes] = mapped_column(LargeBinary)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    record: Mapped[DischargeRecord] = relationship(back_populates="vectors")

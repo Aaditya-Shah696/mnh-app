@@ -16,7 +16,7 @@ Tailscale machine name, `aaditya` is the sudo user.
 | `/srv/mnh/.venv` | Python venv, installed from `requirements.lock` with `--require-hashes` | `mnh` |
 | `/srv/mnh/data` | `discharge.db`, `clinic.json`, `backup_password.txt` | `mnh`, 700, files 600 |
 | `/srv/mnh/.cache` | fastembed model (downloaded once) | `mnh` |
-| `/srv/mnh/mnh.env` | `DISCHARGE_PUBLIC_ORIGIN`, `DISCHARGE_BACKUP_DIR`, `DISCHARGE_GIT_SHA` | `root`, 600 |
+| `/srv/mnh/mnh.env` | `DISCHARGE_PUBLIC_ORIGIN`, `DISCHARGE_BACKUP_DIR`, `DISCHARGE_GIT_SHA`; optionally `DISCHARGE_LLM_ENABLED`, `ANTHROPIC_API_KEY` | `root`, 600 |
 | `/srv/mnh-backups` | SFTP chroot of the pull user | `root`, 755 |
 | `/srv/mnh-backups/archives` | encrypted backup archives, nothing else | `mnh`, 750, ACL `mnhpull:r-x` |
 | `/etc/mnh` | `deploy_key` (read-only GitHub key), `known_hosts` (GitHub's pinned key), `deploy.conf`, `allowed_signers` | `root`, 700 |
@@ -205,6 +205,26 @@ down in the clinic.
 
 ## Deploying a change (CI/CD)
 
+> **First deploy of the search / vector store change (migration
+> `c9f4a2d7e815`).** The migration moves the old single embedding column
+> into `record_vectors`. On the first start the app builds the keyword index
+> (seconds) and re-embeds every record per section in a background thread;
+> with the 19 demo records this took a few seconds on the laptop, and it
+> scales with the record count. Similar cases keep working
+> throughout on the migrated vectors. Nothing to do by hand;
+> `journalctl -u mnh -g 'Backfilled embeddings\|Search index'` shows when it
+> is done.
+>
+> **ICD-10-CM suggestions (migration `e3b7c1d9a402`).** The first start also
+> embeds the 93k code phrases in the background, which took about 8 minutes on
+> the laptop and will take longer on the VPS. It pauses between batches so the
+> app stays responsive, and caches the result in `/srv/mnh/data/cache/`
+> (~70 MB, not backed up), so later restarts load it in seconds. To skip the
+> wait, copy the laptop's `data/cache/icd10cm-*.npy` to that folder as
+> `mnh` before restarting; the file name carries the code-file hash and
+> model, so a mismatched copy is ignored and rebuilt.
+> `journalctl -u mnh -g 'ICD-10-CM suggestions ready'` shows when it is done.
+
 Push to `main`. That is the whole procedure. What happens:
 
 1. GitHub Actions (`.github/workflows/ci.yml`) lints the shell scripts,
@@ -286,6 +306,22 @@ Run `create_user.py` from `/srv/mnh/app` as
 Caddy's admin API is off, so `systemctl reload caddy` does not work; use
 `sudo systemctl restart caddy` (deploys do this automatically when the
 Caddyfile changes, after validating it).
+
+### AI drafting (optional)
+
+Off unless switched on. Deploys rewrite only `DISCHARGE_GIT_SHA` in
+`mnh.env`, so the key survives them.
+
+```bash
+sudo nano /srv/mnh/mnh.env        # add DISCHARGE_LLM_ENABLED=1 and ANTHROPIC_API_KEY=sk-ant-...
+sudo systemctl restart mnh
+journalctl -u mnh -n 20 | grep -i drafting   # "AI drafting enabled with claude-sonnet-5-5"
+```
+
+To switch it off, delete the two lines (or set `DISCHARGE_LLM_ENABLED=0`) and
+restart; the button disappears on the next page load. Usage and outcomes are
+on the Audit page filtered to `record.draft`. A key that leaks is revoked in
+the Anthropic Console and replaced in `mnh.env`.
 
 Uptime monitoring: register `https://mnhapp.org/api/health` with a free
 checker (UptimeRobot or similar), 5-minute interval, alert to Aaditya's

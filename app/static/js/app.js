@@ -10,6 +10,7 @@ const ICONS = {
   "arrow-left": '<svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8H59.31l58.35 58.34a8 8 0 0 1-11.32 11.32l-72-72a8 8 0 0 1 0-11.32l72-72a8 8 0 0 1 11.32 11.32L59.31 120H216a8 8 0 0 1 8 8Z"/></svg>',
   "file-pdf": '<svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 152a8 8 0 0 1-8 8h-24v16h16a8 8 0 0 1 0 16h-16v16a8 8 0 0 1-16 0v-56a8 8 0 0 1 8-8h32a8 8 0 0 1 8 8ZM92 172a28 28 0 0 1-28 28h-8v8a8 8 0 0 1-16 0v-56a8 8 0 0 1 8-8h16a28 28 0 0 1 28 28Zm-16 0a12 12 0 0 0-12-12h-8v24h8a12 12 0 0 0 12-12Zm88 8a36 36 0 0 1-36 36h-16a8 8 0 0 1-8-8v-56a8 8 0 0 1 8-8h16a36 36 0 0 1 36 36Zm-16 0a20 20 0 0 0-20-20h-8v40h8a20 20 0 0 0 20-20ZM40 112V40a16 16 0 0 1 16-16h96a8 8 0 0 1 5.66 2.34l56 56A8 8 0 0 1 216 88v24a8 8 0 0 1-16 0V96h-48a8 8 0 0 1-8-8V40H56v72a8 8 0 0 1-16 0ZM160 80h28.69L160 51.31Z"/></svg>',
   trash: '<svg width="15" height="15" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216 48h-40v-8a24 24 0 0 0-24-24h-48a24 24 0 0 0-24 24v8H40a8 8 0 0 0 0 16h8v144a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16V64h8a8 8 0 0 0 0-16ZM96 40a8 8 0 0 1 8-8h48a8 8 0 0 1 8 8v8H96Zm96 168H64V64h128Zm-80-104v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Zm48 0v64a8 8 0 0 1-16 0v-64a8 8 0 0 1 16 0Z"/></svg>',
+  sparkle: '<svg width="15" height="15" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M197.58 129.06l-51.61-19l-19-51.65a15.92 15.92 0 0 0-29.88 0L78.07 110l-51.65 19a15.92 15.92 0 0 0 0 29.88L78 178l19 51.62a15.92 15.92 0 0 0 29.88 0L146 178l51.65-19a15.92 15.92 0 0 0 0-29.88ZM140.39 163a15.87 15.87 0 0 0-9.43 9.43l-19 51.46L93 172.39a15.87 15.87 0 0 0-9.39-9.39l-51.46-19l51.46-19a15.87 15.87 0 0 0 9.39-9.39l19-51.46l19 51.46a15.87 15.87 0 0 0 9.39 9.39l51.46 19ZM144 40a8 8 0 0 1 8-8h16V16a8 8 0 0 1 16 0v16h16a8 8 0 0 1 0 16h-16v16a8 8 0 0 1-16 0V48h-16a8 8 0 0 1-8-8Zm104 48a8 8 0 0 1-8 8h-8v8a8 8 0 0 1-16 0v-8h-8a8 8 0 0 1 0-16h8v-8a8 8 0 0 1 16 0v8h8a8 8 0 0 1 8 8Z"/></svg>',
   copy: '<svg width="15" height="15" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M216 32H88a8 8 0 0 0-8 8v40H40a8 8 0 0 0-8 8v128a8 8 0 0 0 8 8h128a8 8 0 0 0 8-8v-40h40a8 8 0 0 0 8-8V40a8 8 0 0 0-8-8Zm-56 176H48V96h112Zm48-48h-32V88a8 8 0 0 0-8-8H96V48h112Z"/></svg>',
   user: '<svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M230.92 212c-15.23-26.33-38.7-45.21-66.09-54.16a72 72 0 1 0-73.66 0c-27.39 8.94-50.86 27.82-66.09 54.16a8 8 0 1 0 13.85 8c18.84-32.56 52.14-52 89.07-52s70.23 19.44 89.07 52a8 8 0 1 0 13.85-8ZM72 96a56 56 0 1 1 56 56a56.06 56.06 0 0 1-56-56Z"/></svg>',
   "sign-out": '<svg width="16" height="16" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M112 216a8 8 0 0 1-8 8H48a16 16 0 0 1-16-16V48a16 16 0 0 1 16-16h56a8 8 0 0 1 0 16H48v160h56a8 8 0 0 1 8 8Zm109.66-93.66l-40-40a8 8 0 0 0-11.32 11.32L196.69 120H104a8 8 0 0 0 0 16h92.69l-26.35 26.34a8 8 0 0 0 11.32 11.32l40-40a8 8 0 0 0 0-11.32Z"/></svg>',
@@ -159,6 +160,10 @@ const state = {
   matchRequestSeq: 0,    // guards against out-of-order responses overwriting newer ones
   matchPanelCollapsed: localStorage.getItem("mnh:matchPanelCollapsed") === "1",
   audit: { shown: 0, nextBeforeId: null, params: {}, loading: false, seq: 0 },
+  draft: { enabled: false, busy: false, seq: 0, result: null }, // AI course-in-hospital draft
+  listSeq: 0,           // guards the home list against out-of-order search responses
+  dxCodes: [],          // ICD-10-CM codes chosen for this record: [{code, title}]
+  codeSeq: 0,           // guards code suggestions against out-of-order responses
 };
 
 const isAdmin = () => Boolean(state.user && state.user.role === "admin");
@@ -422,12 +427,81 @@ function listRow(deleted, openLabel, onOpen, ...cells) {
     ...cells);
 }
 
+// Where a search hit matched, as shown on its row.
+const SEARCH_SECTION_LABELS = {
+  patient_name: "Name", diagnosis: "Diagnosis", history: "History",
+  examination: "Examination", investigations: "Investigations",
+  course: "Course in hospital", medicines: "Medicines", advice: "Advice",
+};
+
+function snippetEl(parts) {
+  return el("span", { class: "r-snippet" },
+    ...parts.map((p) => (p.hit ? el("mark", { text: p.text }) : document.createTextNode(p.text))));
+}
+
+// Search over every live record: words typed (keyword index) first, then a
+// few records related only by meaning, under their own heading.
+async function loadSearchResults(query, seq) {
+  const list = $("home-list");
+  const section = $("home-search-section").value;
+  let result;
+  try {
+    const params = new URLSearchParams({ q: query, section });
+    result = await api("/api/search?" + params.toString());
+  } catch (err) {
+    if (seq !== state.listSeq) return;
+    list.replaceChildren(el("div", { class: "empty-state" },
+      el("div", { class: "e-title", text: "Search failed" }),
+      el("div", { text: err.message })));
+    return;
+  }
+  if (seq !== state.listSeq) return; // a newer keystroke's search owns the list
+  const nodes = [];
+  if (result.note) nodes.push(el("div", { class: "list-note", text: result.note }));
+  let dividerShown = false;
+  for (const hit of result.hits) {
+    if (!hit.keyword && !dividerShown) {
+      dividerShown = true;
+      nodes.push(el("div", {
+        class: "list-divider",
+        text: "Related by meaning (no exact word match)",
+      }));
+    }
+    const r = hit.record;
+    const row = listRow(false, "Open record for " + r.patient_name,
+      () => navigate("#/record/" + r.id),
+      el("span", { class: "r-name", text: r.patient_name }),
+      el("span", { class: "r-dx", text: r.diagnosis || "No diagnosis recorded" }),
+      el("span", {
+        class: "chip chip-muted r-where",
+        text: SEARCH_SECTION_LABELS[hit.section] || hit.section,
+        title: hit.keyword ? "Matched the words you typed here" : "Related in meaning to your search",
+      }),
+      el("span", { class: "r-date", text: fmtDate(r.discharge_date || r.admission_date || r.updated_at) }),
+      hit.snippet.length ? snippetEl(hit.snippet) : null,
+    );
+    row.classList.add("is-hit");
+    nodes.push(row);
+  }
+  if (!result.hits.length) {
+    nodes.push(el("div", { class: "empty-state" },
+      el("div", { class: "e-title", text: "No records match “" + query + "”" }),
+      el("div", { text: "Try fewer words, another spelling, or All fields." })));
+  }
+  list.replaceChildren(...nodes);
+}
+
 async function loadRecordList(query) {
   const list = $("home-list");
   const showDeleted = isAdmin() && $("home-show-deleted").checked;
+  const seq = ++state.listSeq;
   list.replaceChildren(
     ...Array.from({ length: 4 }, () => el("div", { class: "skeleton-row" }))
   );
+  if (query && !showDeleted) {
+    await loadSearchResults(query, seq);
+    return;
+  }
   let records;
   try {
     const params = new URLSearchParams();
@@ -436,11 +510,13 @@ async function loadRecordList(query) {
     const qs = params.toString();
     records = await api("/api/records" + (qs ? "?" + qs : ""));
   } catch (err) {
+    if (seq !== state.listSeq) return;
     list.replaceChildren(el("div", { class: "empty-state" },
       el("div", { class: "e-title", text: "Could not load records" }),
       el("div", { text: err.message })));
     return;
   }
+  if (seq !== state.listSeq) return;
   if (!records.length) {
     const title = showDeleted ? "No deleted records"
       : query ? "No records match “" + query + "”" : "No discharge records yet";
@@ -789,6 +865,12 @@ function updateEditorAdminButtons() {
 }
 
 function clearForm() {
+  hideDraftPanel();
+  state.dxCodes = [];
+  state.codeSeq += 1;
+  $("dx-code-search").value = "";
+  $("dx-suggest").replaceChildren();
+  renderDxChips();
   setFormReadOnly(false);
   state.recordDeleted = false;
   $("record-deleted-banner").classList.add("hidden");
@@ -852,6 +934,8 @@ async function showEditor(recordId, patientId) {
   lockPatient(record.patient);
   for (const key of SCALAR_FIELDS) $("f-" + key).value = record[key] || "";
   for (const key of SIGN_FIELDS) $("f-" + key).checked = record[key] === "yes";
+  state.dxCodes = (record.diagnosis_codes || []).map((c) => ({ code: c.code, title: c.title }));
+  renderDxChips();
   $("f-admission_date").value = (record.admission_date || "").slice(0, 16);
   $("f-discharge_date").value = (record.discharge_date || "").slice(0, 16);
   $("f-follow_up_date").value = record.follow_up_date || "";
@@ -913,6 +997,7 @@ function collectRecordPayload() {
     payload[key] = $("f-" + key).checked ? "yes" : "no";
   }
   payload.status = $("f-status").value;
+  payload.diagnosis_codes = state.dxCodes.map((c) => ({ code: c.code }));
   payload.treatment_items = [
     ...readTxTable("tx-hospital", "hospital"),
     ...readTxTable("tx-discharge", "discharge"),
@@ -949,11 +1034,16 @@ async function saveRecord() {
   $("btn-save").disabled = true;
   setSaveStatus("Saving…");
   try {
+    const existingPatient = Boolean(state.patient);
     const patient = await ensurePatient();
     const payload = collectRecordPayload();
     let record;
     if (state.recordId === null) {
       payload.patient_id = patient.id;
+      if (existingPatient && !(await confirmNotDuplicate(payload))) {
+        setSaveStatus("Not saved");
+        return;
+      }
       record = await api("/api/records", { json: payload });
       state.recordId = record.id;
       history.replaceState(null, "", "#/record/" + record.id);
@@ -974,6 +1064,33 @@ async function saveRecord() {
     state.saving = false;
     $("btn-save").disabled = false;
   }
+}
+
+// Before a new record for an existing patient is created: does that patient
+// already have one admitted the same day, or one almost identical? Advisory
+// only; if the check itself fails, saving goes ahead.
+async function confirmNotDuplicate(payload) {
+  let check;
+  try {
+    check = await api("/api/records/duplicate-check", { json: payload });
+  } catch (err) {
+    if (err.status === 401) throw err;
+    return true;
+  }
+  if (!check.candidates.length) return true;
+  const NL = String.fromCharCode(10);
+  const lines = check.candidates.slice(0, 3).map((c) => {
+    const r = c.record;
+    const when = fmtDate(r.admission_date || r.discharge_date || r.updated_at) || "undated";
+    const why = c.reasons.includes("same_admission_date") ? "admitted the same day" : "almost identical content";
+    return "• " + when + ": " + (r.diagnosis || "no diagnosis") + " (" + why + ")";
+  });
+  return confirmDialog(
+    "Possible duplicate record",
+    "This patient already has:" + NL + lines.join(NL) + NL + NL +
+      "Save this as a separate discharge anyway? To compare first, cancel and open the patient's profile.",
+    "Save anyway",
+  );
 }
 
 async function deleteRecord() {
@@ -1002,6 +1119,170 @@ async function restoreRecord(recordId) {
   } catch (err) {
     toast("Restore failed: " + err.message, true);
   }
+}
+
+/* ---------- ICD-10-CM codes under Diagnosis ---------- */
+
+function renderDxChips() {
+  $("dx-chips").replaceChildren(...state.dxCodes.map((c) =>
+    el("span", { class: "dx-chip", title: c.code + " " + c.title },
+      el("span", { class: "dx-code", text: c.code }),
+      el("span", { class: "dx-title", text: c.title }),
+      el("button", {
+        type: "button", "aria-label": "Remove code " + c.code, text: "×",
+        onclick: () => removeDxCode(c.code),
+      }),
+    )));
+}
+
+function addDxCode(item) {
+  if (state.recordDeleted || state.dxCodes.some((c) => c.code === item.code)) return;
+  if (state.dxCodes.length >= 10) { toast("At most 10 codes per record", true); return; }
+  state.dxCodes.push({ code: item.code, title: item.title });
+  renderDxChips();
+  markDirty();
+  refreshCodeSuggestions();
+}
+
+function removeDxCode(code) {
+  if (state.recordDeleted) return;
+  state.dxCodes = state.dxCodes.filter((c) => c.code !== code);
+  renderDxChips();
+  markDirty();
+  refreshCodeSuggestions();
+}
+
+// Suggestions follow the code search box when it has text, otherwise the
+// diagnosis itself. A typed code always works; suggestions by meaning start
+// once the server has built its code vectors (a one-off, minutes).
+async function refreshCodeSuggestions() {
+  const box = $("dx-suggest");
+  if (state.recordDeleted) { box.replaceChildren(); return; }
+  const typed = $("dx-code-search").value.trim();
+  const query = typed || $("f-diagnosis").value.trim();
+  const seq = ++state.codeSeq;
+  if (query.length < 2) { box.replaceChildren(); return; }
+  let body;
+  try {
+    body = await api("/api/codes/suggest?" + new URLSearchParams({ q: query, limit: "8" }));
+  } catch (err) {
+    if (seq !== state.codeSeq) return;
+    box.replaceChildren(el("div", { class: "dx-note", text: "Code suggestions unavailable: " + err.message }));
+    return;
+  }
+  if (seq !== state.codeSeq) return;
+  const chosen = new Set(state.dxCodes.map((c) => c.code));
+  const items = body.items.filter((i) => !chosen.has(i.code)).slice(0, typed ? 8 : 5);
+  const nodes = items.map((i) => el("button", {
+    type: "button", class: "dx-option",
+    title: "Add " + i.code + " to this record",
+    onclick: () => addDxCode(i),
+  },
+    el("span", { class: "dx-code", text: "+ " + i.code }),
+    el("span", { class: "dx-title", text: i.title }),
+    i.matched ? el("span", { class: "dx-via", text: "matched “" + i.matched + "”" }) : null,
+  ));
+  const st = body.status;
+  if (st.state === "building" || st.state === "not_started") {
+    const pct = st.total ? Math.floor((100 * st.done) / st.total) : 0;
+    nodes.push(el("div", { class: "dx-note",
+      text: "Suggestions by meaning are being prepared (" + pct + "%). Typing a code works now." }));
+  } else if (st.state === "failed") {
+    nodes.push(el("div", { class: "dx-note", text: "Suggestions by meaning failed to load: " + (st.error || "") }));
+  } else if (!items.length && typed) {
+    nodes.push(el("div", { class: "dx-note", text: "No " + st.code_set + " code matches “" + typed + "”." }));
+  }
+  box.replaceChildren(...nodes);
+}
+
+const scheduleCodeSuggestions = debounce(refreshCodeSuggestions, 400);
+
+/* ---------- AI draft: course in hospital ---------- */
+
+// Shown only when the server reports drafting is enabled and configured.
+async function loadDraftStatus() {
+  try {
+    const st = await api("/api/draft/status");
+    state.draft.enabled = Boolean(st.enabled);
+  } catch (_) {
+    state.draft.enabled = false;
+  }
+  $("btn-draft-course").classList.toggle("hidden", !state.draft.enabled);
+}
+
+function setDraftBusy(busy) {
+  state.draft.busy = busy;
+  $("btn-draft-course").disabled = busy || state.recordDeleted;
+  $("btn-draft-course-label").textContent = busy ? "Drafting…" : "Draft with AI";
+}
+
+function hideDraftPanel() {
+  state.draft.seq += 1; // any response still in flight is for a form that is gone
+  state.draft.result = null;
+  $("draft-panel").classList.add("hidden");
+  setDraftBusy(false);
+}
+
+async function draftCourse() {
+  if (state.draft.busy || state.recordDeleted) return;
+  const payload = collectRecordPayload();
+  payload.record_id = state.recordId;
+  payload.patient_id = state.patient ? state.patient.id : null;
+  if (!state.patient) {
+    // Unsaved patient: sent only so the server can scrub the name from free text.
+    payload.patient_name = $("p-name").value.trim() || null;
+    payload.patient_sex = $("p-sex").value || null;
+  }
+  const seq = ++state.draft.seq;
+  setDraftBusy(true);
+  try {
+    const result = await api("/api/draft/course-in-hospital", { json: payload });
+    if (seq !== state.draft.seq) return;
+    showDraft(result);
+  } catch (err) {
+    if (seq !== state.draft.seq) return;
+    toast("Could not draft: " + err.message, true);
+  } finally {
+    if (seq === state.draft.seq) setDraftBusy(false);
+  }
+}
+
+function showDraft(result) {
+  state.draft.result = result;
+  const empty = !result.course_in_hospital;
+  const text = $("draft-text");
+  text.textContent = empty ? "The record holds too little to draft from yet." : result.course_in_hospital;
+  text.classList.toggle("is-empty", empty);
+  const missing = result.missing_information || [];
+  $("draft-missing-list").replaceChildren(...missing.map((q) => el("li", { text: q })));
+  $("draft-missing").classList.toggle("hidden", !missing.length);
+  const n = result.exemplar_record_ids.length;
+  const basis = n
+    ? "Written in the style of " + n + " similar past case" + (n === 1 ? "" : "s") + "."
+    : (result.exemplar_note || "No similar past cases were used.");
+  $("draft-meta").textContent = basis + " Model: " + result.model + ".";
+  $("btn-draft-use").disabled = empty;
+  $("draft-panel").classList.remove("hidden");
+}
+
+async function useDraft() {
+  const result = state.draft.result;
+  if (!result || !result.course_in_hospital) return;
+  const area = $("f-course_in_hospital");
+  const current = area.value.trim();
+  if (current && current !== result.course_in_hospital) {
+    const ok = await confirmDialog(
+      "Replace the current text?",
+      "Course in hospital already has text. Using the draft replaces it; the current text is not kept.",
+      "Replace",
+    );
+    if (!ok) return;
+  }
+  area.value = result.course_in_hospital;
+  hideDraftPanel();
+  markDirty();
+  area.focus();
+  toast("Draft inserted. Review it before saving.");
 }
 
 /* ---------- Similar cases (match panel) ---------- */
@@ -1386,6 +1667,21 @@ function startApp() {
   state.booted = true;
   updateMatchToggleButton();
   $("btn-toggle-match").addEventListener("click", toggleMatchPanel);
+  $("btn-draft-course").addEventListener("click", draftCourse);
+  $("f-diagnosis").addEventListener("input", scheduleCodeSuggestions);
+  $("dx-code-search").addEventListener("input", (e) => {
+    e.stopPropagation(); // searching codes is not an edit; adding one is
+    scheduleCodeSuggestions();
+  });
+  $("dx-code-search").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();  // Enter adds the first suggestion, not a form submit
+    const first = $("dx-suggest").querySelector(".dx-option");
+    if (first) first.click();
+  });
+  $("btn-draft-use").addEventListener("click", useDraft);
+  $("btn-draft-discard").addEventListener("click", hideDraftPanel);
+  loadDraftStatus();
 
   $("btn-new-record").addEventListener("click", () => navigate("#/record/new"));
   $("nav-records").addEventListener("click", () => navigate("#/"));
@@ -1404,6 +1700,7 @@ function startApp() {
     loadRecordList($("home-search").value.trim());
   }, 300));
   $("home-show-deleted").addEventListener("change", () => loadRecordList($("home-search").value.trim()));
+  $("home-search-section").addEventListener("change", () => loadRecordList($("home-search").value.trim()));
   $("patients-search").addEventListener("input", debounce(() => {
     loadPatientList($("patients-search").value.trim());
   }, 300));

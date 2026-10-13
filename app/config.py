@@ -66,6 +66,59 @@ LOGIN_IP_WINDOW_SECONDS = 600
 
 MATCH_VIEW_AUDIT_MINUTES = 60
 
+# ---- Search ---------------------------------------------------------------
+# Records containing the typed words always come first. Records related only
+# by meaning follow, at most SEARCH_MAX_MEANING_HITS of them, and only if
+# they stand out from the query's scores over every record (z-score at least
+# SEARCH_MIN_ZSCORE) and reach SEARCH_MIN_SIMILARITY. bge-small similarities
+# are compressed (noise ~0.5-0.6, real matches ~0.65-0.8), so a fixed cut-off
+# alone gave ~0.4 precision on the 18-query check over the 19 demo records;
+# this rule gave 0.78 precision at 0.61 recall. Re-tune on real records once
+# the old cards are imported. Below SEARCH_MIN_CORPUS records a z-score means
+# little, so meaning only re-orders word matches.
+SEARCH_MIN_SIMILARITY = float(os.environ.get("DISCHARGE_SEARCH_MIN_SIMILARITY", "0.55"))
+SEARCH_MIN_ZSCORE = float(os.environ.get("DISCHARGE_SEARCH_MIN_ZSCORE", "1.75"))
+SEARCH_MIN_CORPUS = 10
+SEARCH_MAX_MEANING_HITS = 5
+# Shorter queries (initials, two-letter fragments) are keyword-only.
+SEARCH_SEMANTIC_MIN_CHARS = 4
+
+# ---- ICD-10-CM diagnosis codes -------------------------------------------
+# The newest app/data/icd10cm_<year>.tsv unless DISCHARGE_ICD10_FILE names one.
+ICD10_DATA_DIR = PROJECT_ROOT / "app" / "data"
+ICD10_FILE = os.environ.get("DISCHARGE_ICD10_FILE", "").strip()
+# Derived phrase vectors (~70 MB). Not in the database, not in backups.
+CODE_CACHE_DIR = Path(os.environ.get("DISCHARGE_CODE_CACHE_DIR", DATA_DIR / "cache"))
+# Seconds slept between embedding batches while building in the background,
+# so the one-off build leaves CPU for requests on the 2-vCPU VPS.
+CODE_BUILD_PAUSE = float(os.environ.get("DISCHARGE_CODE_BUILD_PAUSE", "0.05"))
+MAX_DIAGNOSIS_CODES = 10
+
+# ---- Duplicate-entry warning -----------------------------------------------
+# A new record is flagged when the same patient already has a live record
+# admitted the same day, or one this similar admitted within the window.
+DUPLICATE_SIMILARITY = 0.97
+DUPLICATE_WINDOW_DAYS = 7
+
+# ---- AI drafting (optional, off by default) --------------------------------
+# Drafts the "Course in hospital" text with Claude for the doctor to review.
+# Needs DISCHARGE_LLM_ENABLED=1 and an API key: ANTHROPIC_API_KEY in the
+# environment (on the VPS: /srv/mnh/mnh.env), or the key alone in
+# ANTHROPIC_KEY_FILE (git-ignored, never in backups). Identifiers are
+# stripped before anything is sent; see app/services/drafting.py.
+ANTHROPIC_KEY_FILE = Path(os.environ.get("DISCHARGE_ANTHROPIC_KEY_FILE", DATA_DIR / "anthropic_api_key.txt"))
+LLM_ENABLED = os.environ.get("DISCHARGE_LLM_ENABLED", "0").strip() == "1"
+LLM_MODEL = os.environ.get("DISCHARGE_LLM_MODEL", "claude-sonnet-5-5").strip()
+# The doctor waits on this button, so medium rather than the model's default
+# high. Raise it only if the 60-card evaluation shows better drafts.
+LLM_EFFORT = os.environ.get("DISCHARGE_LLM_EFFORT", "medium").strip()
+LLM_MAX_TOKENS = 8000
+LLM_TIMEOUT_SECONDS = 90.0
+# Past cases sent as style examples (their "course in hospital" text only).
+LLM_EXEMPLARS = 3
+# Per-user cap on drafts, a cost and runaway-loop brake.
+LLM_USER_HOURLY_LIMIT = int(os.environ.get("DISCHARGE_LLM_HOURLY_LIMIT", "30"))
+
 # Printed on every discharge card, before the signature. Editable in
 # data/clinic.json; sourced from WHO/IMCI general danger signs and
 # standard safety-netting advice.

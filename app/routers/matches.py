@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -73,32 +72,14 @@ def match_records(
     except embeddings.EmbeddingUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    stmt = select(
-        models.DischargeRecord.id, models.DischargeRecord.embedding
-    ).where(
-        models.DischargeRecord.embedding.is_not(None),
-        models.DischargeRecord.embedding_model == config.EMBEDDING_MODEL,
-        models.DischargeRecord.deleted_at.is_(None),
-    )
-    if query.exclude_record_id is not None:
-        stmt = stmt.where(models.DischargeRecord.id != query.exclude_record_id)
-
-    rows = db.execute(stmt).all()
-    if not rows:
-        return []
-
-    ids = [row.id for row in rows]
-    matrix = np.frombuffer(b"".join(row.embedding for row in rows), dtype=np.float32)
-    matrix = matrix.reshape(len(ids), -1)
-    if matrix.shape[1] != query_vec.shape[0]:
-        raise HTTPException(
-            status_code=503,
-            detail="Stored embeddings do not match the current model; re-save records.",
+    try:
+        chosen = embeddings.rank_similar(
+            db, query_vec, limit=query.limit, exclude_record_id=query.exclude_record_id,
         )
-
-    scores = matrix @ query_vec  # unit vectors, so dot product == cosine
-    order = np.argsort(scores)[::-1][: query.limit]
-    chosen = [(ids[int(idx)], float(scores[int(idx)])) for idx in order]
+    except embeddings.EmbeddingMismatch as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not chosen:
+        return []
 
     records = {
         record.id: record

@@ -26,12 +26,17 @@ def test_semantic_match_beats_wording(client, patient):
 
     # Held-out phrasing, no shared keywords with the gastro record text
     resp = client.post("/api/match", json={
-        "text": "frequent watery motions, dehydrated, vomited twice", "limit": 3,
+        "text": "frequent watery motions, dehydrated, vomited twice", "limit": 20,
     })
     assert resp.status_code == 200
     results = resp.json()
     assert results, "no matches returned"
-    assert results[0]["record"]["id"] == gastro
+    # The suite shares one database, so other gastroenteritis records may sit
+    # alongside; what matters is that meaning puts gastro above the others.
+    ranked = [r["record"]["id"] for r in results]
+    assert gastro in ranked
+    assert all(rid not in ranked or ranked.index(gastro) < ranked.index(rid) for rid in (chest, uti))
+    assert "gastro" in results[0]["record"]["diagnosis"].lower()
     assert results[0]["score"] > results[-1]["score"]
 
     for rid in (gastro, chest, uti):

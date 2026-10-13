@@ -17,6 +17,10 @@ from pathlib import Path
 _tmp = tempfile.mkdtemp(prefix="discharge_test_")
 os.environ["DISCHARGE_DATA_DIR"] = _tmp
 os.environ.setdefault("DISCHARGE_PUBLIC_ORIGIN", "https://testserver")
+# A small ICD-10-CM subset in the real file format, so building the code
+# vectors takes seconds rather than minutes; no pauses between batches.
+os.environ["DISCHARGE_ICD10_FILE"] = str(Path(__file__).resolve().parent / "fixtures" / "icd10cm_2027_sample.tsv")
+os.environ["DISCHARGE_CODE_BUILD_PAUSE"] = "0"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

@@ -225,6 +225,12 @@ class TreatmentItemOut(TreatmentItemIn):
 
 # ---------- Discharge records ----------
 
+class DiagnosisCode(BaseModel):
+    code: str = Field(min_length=3, max_length=10)
+    # Filled in by the server from the code list; ignored on input.
+    title: str | None = None
+
+
 class RecordFields(BaseModel):
     ipd_number: str | None = Field(default=None, max_length=50)
     ward: str | None = Field(default=None, max_length=50)
@@ -235,6 +241,7 @@ class RecordFields(BaseModel):
     height: str | None = Field(default=None, max_length=20)
 
     diagnosis: str | None = None
+    diagnosis_codes: list[DiagnosisCode] = Field(default_factory=list, max_length=20)
     history: str | None = None
     examination_findings: str | None = None
 
@@ -273,6 +280,11 @@ class RecordFields(BaseModel):
         if v not in RECORD_STATUSES:
             raise ValueError(f"status must be one of {sorted(RECORD_STATUSES)}")
         return v
+
+    @field_validator("diagnosis_codes", mode="before")
+    @classmethod
+    def _codes_default(cls, v):
+        return [] if v is None else v
 
     @field_validator(*SIGN_FIELDS)
     @classmethod
@@ -344,3 +356,95 @@ class MatchRecord(BaseModel):
 class MatchResult(BaseModel):
     score: float
     record: MatchRecord
+
+
+# ---------- AI drafting ----------
+
+class DraftRequest(RecordUpdate):
+    """The in-progress editor form. Identifiers in it are used only to scrub
+    free text; they are never sent to the model."""
+
+    patient_id: int | None = None
+    record_id: int | None = None
+    # For a patient not saved yet: scrubbed from free text, never sent.
+    patient_name: str | None = Field(default=None, max_length=200)
+    patient_sex: str | None = Field(default=None, max_length=10)
+
+
+class DraftStatus(BaseModel):
+    enabled: bool
+    model: str | None = None
+    reason: str | None = None
+
+
+class CourseDraftOut(BaseModel):
+    course_in_hospital: str
+    missing_information: list[str]
+    exemplar_record_ids: list[int]
+    exemplar_note: str | None = None
+    model: str
+
+
+# ---------- Search ----------
+
+class SnippetPart(BaseModel):
+    text: str
+    hit: bool
+
+
+class SearchHitOut(BaseModel):
+    record: RecordSummary
+    score: float
+    section: str           # where it matched: patient_name, diagnosis, course, ...
+    snippet: list[SnippetPart]
+    keyword: bool          # matched the words typed
+    similarity: float | None = None  # meaning match (cosine), when there was one
+
+
+class SearchOut(BaseModel):
+    hits: list[SearchHitOut]
+    semantic_used: bool
+    note: str | None = None
+
+
+# ---------- Duplicate-entry check ----------
+
+class DuplicateCheck(RecordFields):
+    patient_id: int
+    record_id: int | None = None
+    treatment_items: list[TreatmentItemIn] = []
+
+
+class DuplicateCandidate(BaseModel):
+    record: RecordSummary
+    reasons: list[str]     # "same_admission_date", "near_identical"
+    similarity: float | None = None
+
+
+class DuplicateCheckOut(BaseModel):
+    candidates: list[DuplicateCandidate]
+    note: str | None = None
+
+
+# ---------- ICD-10-CM codes ----------
+
+class CodeIndexStatus(BaseModel):
+    state: str          # not_started | building | ready | failed
+    done: int
+    total: int
+    error: str | None = None
+    code_set: str
+    codes: int
+
+
+class CodeSuggestion(BaseModel):
+    code: str
+    title: str
+    matched: str | None = None   # index phrase / synonym that matched, if not the title
+    score: float
+    exact: bool = False          # the query was this code (or a prefix of it)
+
+
+class CodeSuggestions(BaseModel):
+    status: CodeIndexStatus
+    items: list[CodeSuggestion]

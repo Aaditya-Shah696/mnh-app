@@ -9,6 +9,7 @@ from ..audit import audit, changed_fields
 from ..database import get_db
 from ..querying import contains_pattern
 from ..models import utcnow
+from ..services import search
 
 router = APIRouter(
     prefix="/api/patients", tags=["patients"], dependencies=[Depends(auth.current_user)]
@@ -119,6 +120,9 @@ def update_patient(
     before = {k: getattr(patient, k) for k in after}
     for key, value in after.items():
         setattr(patient, key, value)
+    if before.get("name") != patient.name:
+        db.flush()
+        search.index_records(db, [r.id for r in patient.records])
     audit(db, "patient.update", request=request, user=user, entity_type="patient",
           entity_id=patient.id, detail={"fields": changed_fields(before, after)})
     db.commit()

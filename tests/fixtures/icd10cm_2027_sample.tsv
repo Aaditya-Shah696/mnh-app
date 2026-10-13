@@ -1,0 +1,446 @@
+# Test subset of app/data/icd10cm_2027.tsv (same format): codes the tests rely on plus lookalikes.
+A01.00	title	Typhoid fever, unspecified
+A01.00	index	Eberth's disease
+A01.00	index	Enteritis, typhosa
+A01.00	index	Fever, enteric
+A01.00	index	Fever, gastroenteric
+A01.00	index	Fever, typhogastric
+A01.00	index	Fever, typhoid
+A01.00	index	Infection, infected, infective, Bacillus, typhosa
+A01.00	index	Infection, infected, infective, Bacterium, typhosum
+A01.00	index	Infection, infected, infective, Eberthella typhosa
+A01.00	index	Typhoid
+A01.00	index	Typhomania
+A01.01	title	Typhoid meningitis
+A01.01	index	Fever, typhoid, complicated by, meningitis
+A01.01	index	Meningitis, in, typhoid fever
+A01.01	index	Meningitis, typhoid
+A01.01	index	Typhoid, meningitis
+A02.0	title	Salmonella enteritis
+A02.0	index	Dysentery, dysenteric, Salmonella
+A02.0	index	Enteritis, aertrycke infection
+A02.0	index	Enteritis, infectious NOS, due to, Arizona
+A02.0	index	Enteritis, Salmonella, salmonellosis
+A02.0	index	Gastroenteritis, Salmonella
+A02.0	index	Infection, infected, infective, Salmonella, with, enteritis
+A02.0	index	Intoxication, foodborne, due to, Salmonella, with, enteritis
+A02.0	index	Poisoning, food NEC, due to, salmonella, with, gastroenteritis
+A02.0	index	Salmonellosis
+A05.9	title	Bacterial foodborne intoxication, unspecified
+A05.9	index	Creotoxism
+A05.9	index	Indigestion, due to decomposed food NOS
+A05.9	index	Intoxication, foodborne
+A05.9	index	Intoxication, foodborne, bacterial
+A05.9	index	Intoxication, foodborne, due to, bacterium
+A05.9	index	Kreotoxism
+A05.9	index	Poisoning, bacterial toxins
+A05.9	index	Poisoning, epidemic, fish, bacterial
+A05.9	index	Poisoning, food NEC
+A05.9	index	Poisoning, kreotoxism, food
+A06.0	title	Acute amebic dysentery
+A06.0	index	Amebiasis, acute
+A06.0	index	Amebiasis, intestine
+A06.0	index	Colitis, amebic
+A06.0	index	Diarrhea, diarrheal, amebic
+A06.0	index	Diarrhea, diarrheal, amebic, acute
+A06.0	index	Dysentery, dysenteric, amebic
+A06.0	index	Dysentery, dysenteric, amebic, acute
+A06.0	index	Enteritis, amebic
+A06.0	index	Proctitis, amebic
+A06.0	inclusion	Acute amebiasis
+A06.0	inclusion	Intestinal amebiasis NOS
+A09	title	Infectious gastroenteritis and colitis, unspecified
+A09	index	Arthritis, arthritic, in, enteritis, infectious NEC
+A09	index	Colitis, regional, infectious
+A09	index	Diarrhea, diarrheal, dysenteric
+A09	index	Diarrhea, diarrheal, endemic
+A09	index	Diarrhea, diarrheal, epidemic
+A09	index	Diarrhea, diarrheal, infectious
+A09	index	Disease, diseased, diarrheal, infectious NEC
+A09	index	Dysentery, dysenteric
+A09	index	Dysentery, dysenteric, arthritis
+A09	index	Enteritis, epidemic
+A09	index	Enteritis, infectious NOS
+A09	index	Enteritis, septic
+A09	index	Enterocolitis, infectious NEC
+A09	index	Gastroenteritis, epidemic
+A09	index	Gastroenteropathy, infectious
+A09	index	Ileitis, infectious
+A09	index	Ileocolitis, infectious
+A09	index	Sigmoiditis, infectious
+A09	index	Ulcer, ulcerated, ulcerating, ulceration, ulcerative, dysenteric
+A09	inclusion	Infectious colitis NOS
+A09	inclusion	Infectious enteritis NOS
+A09	inclusion	Infectious gastroenteritis NOS
+A90	title	Dengue fever [classical dengue]
+A90	index	Dengue
+A90	index	Fever, Aden
+A90	index	Fever, breakbone
+A90	index	Fever, dandy
+A90	index	Fever, dengue
+A90	index	Fever, seven day, dengue
+A90	index	Fever, solar
+A90	index	Fever, sun
+A91	title	Dengue hemorrhagic fever
+A91	index	Bangkok hemorrhagic fever
+A91	index	Dengue, hemorrhagic
+A91	index	Fever, Bangkok hemorrhagic
+A91	index	Fever, dengue, hemorrhagic
+A91	index	Fever, hemorrhagic NOS, Bangkok
+A91	index	Fever, hemorrhagic NOS, dengue
+A91	index	Fever, hemorrhagic NOS, Philippine
+A91	index	Fever, hemorrhagic NOS, Singapore
+A91	index	Fever, hemorrhagic NOS, Southeast Asia
+A91	index	Fever, hemorrhagic NOS, Thailand
+A91	index	Fever, Philippine hemorrhagic
+A91	index	Fever, Singapore hemorrhagic
+A91	index	Fever, Southeast Asia hemorrhagic
+A91	index	Fever, Thailand hemorrhagic
+A91	index	Singapore hemorrhagic fever
+A91	index	Southeast Asian hemorrhagic fever
+A91	index	Thailand hemorrhagic fever
+B08.4	title	Enteroviral vesicular stomatitis with exanthem
+B08.4	index	Disease, diseased, hand, foot and mouth
+B08.4	index	Exanthem, exanthema, with enteroviral vesicular stomatitis
+B08.4	index	Stomatitis, vesicular, with exanthem
+B08.4	inclusion	Hand, foot and mouth disease
+B34.9	title	Viral infection, unspecified
+B34.9	index	Arthritis, arthritic, in, viral disease NEC
+B34.9	index	Disease, diseased, nonarthropod-borne NOS
+B34.9	index	Disease, diseased, viral, virus
+B34.9	index	Disease, diseased, viral, virus, nonarthropod-borne NOS
+B34.9	index	Infection, infected, infective, virus, viral NOS
+B34.9	index	Infection, infected, infective, virus, viral NOS, unspecified nature or site
+B34.9	index	Otitis, externa, in, viral disease NEC
+B34.9	index	Syndrome, virus
+B34.9	index	Viremia
+B34.9	inclusion	Viremia NOS
+C34.31	title	Malignant neoplasm of lower lobe, right bronchus or lung
+C34.32	title	Malignant neoplasm of lower lobe, left bronchus or lung
+D50.9	title	Iron deficiency anemia, unspecified
+D50.9	index	Anemia, with, koilonychia
+D50.9	index	Anemia, asiderotic
+D50.9	index	Anemia, deficiency, iron
+D50.9	index	Anemia, due to, impaired absorption
+D50.9	index	Anemia, Faber's
+D50.9	index	Anemia, hypochromic
+D50.9	index	Anemia, iron deficiency
+D50.9	index	Anemia, microcytic
+D50.9	index	Anemia, refractory, sideropenic
+D50.9	index	Anemia, sideropenic
+D50.9	index	Chlorosis
+D50.9	index	Deficiency, deficient, iron, anemia
+D50.9	index	Faber's syndrome
+D50.9	index	Hyposiderinemia
+D50.9	index	Syndrome, Faber's
+D50.9	index	Syndrome, Hayem-Faber
+E10.10	title	Type 1 diabetes mellitus with ketoacidosis without coma
+E10.10	index	Acetonemia, in Type 1 diabetes
+E10.10	index	Acidosis, in Type 1 diabetes
+E10.10	index	Diabetes, diabetic, type 1, with, ketoacidosis
+E10.9	title	Type 1 diabetes mellitus without complications
+E10.9	index	Diabetes, diabetic, type 1
+E86.0	title	Dehydration
+E86.0	index	Anhydration
+E86.0	index	Anhydremia
+E86.0	index	Cachexia, dehydration
+E86.0	index	Dry, dryness, mouth, due to dehydration
+E86.0	index	Luetscher's syndrome
+E86.0	index	Syndrome, Luetscher's
+F44.4	title	Conversion disorder with motor symptom or deficit
+F44.4	index	Abasia
+F44.4	index	Abnormal, abnormality, abnormalities, gait, hysterical
+F44.4	index	Aphonia, hysterical
+F44.4	index	Aphonia, psychogenic
+F44.4	index	Astasia
+F44.4	index	Asthenia, asthenic, hysterical
+F44.4	index	Ataxia, ataxy, ataxic, gait, hysterical
+F44.4	index	Ataxia, ataxy, ataxic, hysterical
+F44.4	index	Ataxia, ataxy, ataxic, nonorganic origin
+F44.4	index	Ataxia, ataxy, ataxic, psychogenic
+F44.4	index	Bent, back
+F44.4	index	Bergeron's disease
+F44.4	index	Blocq's disease
+F44.4	index	Camptocormia
+F44.4	index	Change, voice, psychogenic
+F44.4	index	Chorea, hysterical
+F44.4	index	Contraction, contracture, contracted, hysterical
+F44.4	index	Contraction, contracture, contracted, joint, hysterical
+F44.4	index	Contraction, contracture, contracted, muscle NEC, hysterical
+F44.4	index	Contraction, contracture, contracted, muscle NEC, psychogenic, conversion reaction
+F44.4	index	Deglutition, paralysis, hysterical
+F44.4	index	Disorder, conversion, with, abnormal movement
+F44.4	index	Disorder, conversion, with, speech symptoms
+F44.4	index	Disorder, conversion, with, swallowing symptoms
+F44.4	index	Disorder, conversion, with, weakness or paralysis
+F44.4	index	Disorder, dissociative, affecting, motor function
+F44.4	index	Disorder, movement, hysterical
+F44.4	index	Disorder, psychogenic NOS, monoplegic NEC
+F44.4	index	Disorder, psychogenic NOS, motor
+F44.4	index	Disorder, psychogenic NOS, paralytic NEC
+F44.4	index	Disorder, psychomotor NEC
+F44.4	index	Disorder, psychomotor NEC, hysterical
+F44.4	index	Disturbance, gait, hysterical
+F44.4	index	Disturbance, gait, psychogenic
+F44.4	index	Disturbance, psychomotor
+F44.4	index	Disturbance, voice, psychogenic
+F44.4	index	Dysbasia, hysterical
+F44.4	index	Dysbasia, nonorganic origin
+F44.4	index	Dysbasia, psychogenic
+F44.4	index	Dyskinesia, hysterical
+F44.4	index	Dyskinesia, nonorganic origin
+F44.4	index	Dyskinesia, psychogenic
+F44.4	index	Dysphonia, functional
+F44.4	index	Dysphonia, hysterical
+F44.4	index	Dysphonia, psychogenic
+F44.4	index	Gait abnormality, hysterical
+F44.4	index	Hemiplegia, hysterical
+F44.4	index	Imbalance, hysterical
+F44.4	index	Monoplegia, hysterical
+F44.4	index	Monoplegia, psychogenic
+F44.4	index	Mutism, hysterical
+F44.4	index	Neurosis, neurotic, larynx, hysterical
+F44.4	index	Paralysis, paralytic, deglutition, hysterical
+F44.4	index	Paralysis, paralytic, hysterical
+F44.4	index	Paralysis, paralytic, leg, hysterical
+F44.4	index	Paralysis, paralytic, leg, psychogenic
+F44.4	index	Paralysis, paralytic, psychogenic
+F44.4	index	Paraplegia, functional
+F44.4	index	Paraplegia, hysterical
+F44.4	index	Paraplegia, psychogenic
+F44.4	index	Spasm, spastic, spasticity, glottis, hysterical
+F44.4	index	Spasm, spastic, spasticity, glottis, psychogenic, conversion reaction
+F44.4	index	Spasm, spastic, spasticity, hysterical
+F44.4	index	Spasm, spastic, spasticity, larynx, laryngeal, hysterical
+F44.4	index	Spasm, spastic, spasticity, larynx, laryngeal, psychogenic, conversion reaction
+F44.4	index	Staggering gait, hysterical
+F44.4	index	Torticollis, hysterical
+F44.4	index	Torticollis, psychogenic, conversion reaction
+F44.4	index	Tremor, hysterical
+F44.4	index	Tremor, psychogenic
+F44.4	index	Walking, difficulty, psychogenic
+F44.4	inclusion	Conversion disorder with abnormal movement
+F44.4	inclusion	Conversion disorder with speech symptoms
+F44.4	inclusion	Conversion disorder with swallowing symptoms
+F44.4	inclusion	Conversion disorder with weakness/paralysis
+F44.4	inclusion	Dissociative motor disorders
+F44.4	inclusion	Psychogenic aphonia
+F44.4	inclusion	Psychogenic dysphonia
+G40.901	title	Epilepsy, unspecified, not intractable, with status epilepticus
+G40.901	index	Convulsions, febrile, with status epilepticus
+G40.901	index	Convulsions, febrile, complex, with status epilepticus
+G40.901	index	Epilepsy, epileptic, epilepsia, not intractable, with status epilepticus
+G40.901	index	Seizure, febrile, with status epilepticus
+G40.901	index	Seizure, febrile, complex, with status epilepticus
+G40.901	index	Status, epileptic, epilepticus
+H66.90	title	Otitis media, unspecified, unspecified ear
+H66.90	index	Otitis
+H66.90	index	Otitis, media, acute, subacute
+H66.90	index	Otitis, media, chronic
+J15.9	title	Unspecified bacterial pneumonia
+J15.9	index	Pneumonia, aspiration, due to, aspiration of microorganisms, bacterial
+J15.9	index	Pneumonia, bacillus
+J15.9	index	Pneumonia, bacterial
+J15.9	index	Pneumonia, broncho-, bronchial, bacterial
+J15.9	index	Pneumonia, lobar, bacterial
+J15.9	inclusion	Pneumonia due to gram-positive bacteria
+J18.0	title	Bronchopneumonia, unspecified organism
+J18.0	index	Bronchoalveolitis
+J18.0	index	Pneumonia, broncho-, bronchial
+J18.1	title	Lobar pneumonia, unspecified organism
+J18.1	index	Pneumonia, lobar
+J18.9	title	Pneumonia, unspecified organism
+J18.9	index	Infection, infected, infective, lung
+J18.9	index	Pneumonia
+J18.9	index	Pneumonia, atypical NEC
+J20.9	title	Acute bronchitis, unspecified
+J20.9	index	Bronchitis, with, tracheitis, acute or subacute
+J20.9	index	Bronchitis, with, tracheitis, under l5 years of age
+J20.9	index	Bronchitis, acute or subacute
+J20.9	index	Bronchitis, catarrhal, under l5 years of age
+J20.9	index	Bronchitis, mucopurulent, acute or subacute
+J20.9	index	Bronchorrhea, acute
+J20.9	index	Croup, croupous, bronchial
+J20.9	index	Tracheitis, with, bronchitis, under 15 years of age
+J21.9	title	Acute bronchiolitis, unspecified
+J21.9	index	Bronchiolitis
+J21.9	index	Bronchiolitis, with, bronchospasm or obstruction
+J21.9	index	Bronchospasm, with, bronchiolitis, acute
+J21.9	inclusion	Bronchiolitis (acute)
+J22	title	Unspecified acute lower respiratory infection
+J22	index	Infection, infected, infective, chest
+J22	index	Infection, infected, infective, respiratory NEC, acute
+J22	index	Infection, infected, infective, respiratory NEC, lower
+J22	inclusion	Acute (lower) respiratory (tract) infection NOS
+J45.901	title	Unspecified asthma with (acute) exacerbation
+J45.901	index	Asthma, asthmatic, with, exacerbation
+J45.901	index	Asthma, asthmatic, allergic extrinsic, with, exacerbation
+J45.901	index	Asthma, asthmatic, childhood, with, exacerbation
+J45.901	index	Asthma, asthmatic, late-onset, with, exacerbation
+J45.901	index	Asthma, asthmatic, mixed, with, exacerbation
+J45.901	index	Asthma, asthmatic, nonallergic, with, exacerbation
+J45.901	index	Bronchitis, allergic, with, exacerbation
+J45.901	index	Dyspnea, asthmatic, with, exacerbation
+J45.901	index	Dyspnea, asthmatic, with, bronchitis, with, exacerbation
+J45.901	index	Fever, hay, with asthma, with, exacerbation
+J45.901	index	Obstruction, obstructed, obstructive, airway, with, asthma, with, exacerbation
+J45.901	index	Rhinitis, allergic, with asthma, with, exacerbation
+K52.9	title	Noninfective gastroenteritis and colitis, unspecified
+K52.9	index	Cecitis
+K52.9	index	Colitis
+K52.9	index	Colitis, noninfective
+K52.9	index	Diarrhea, diarrheal, chronic
+K52.9	index	Diarrhea, diarrheal, noninfectious
+K52.9	index	Enteritis
+K52.9	index	Enteritis, chronic
+K52.9	index	Enteritis, noninfectious
+K52.9	index	Enterocolitis
+K52.9	index	Enterocolitis, noninfectious
+K52.9	index	Gastroenteritis
+K52.9	index	Gastroenteritis, noninfectious
+K52.9	index	Gastroenteropathy
+K52.9	index	Gastrojejunitis
+K52.9	index	Ileitis
+K52.9	index	Ileocolitis
+K52.9	index	Sigmoiditis
+K52.9	index	Sigmoiditis, noninfectious
+K52.9	inclusion	Colitis NOS
+K52.9	inclusion	Enteritis NOS
+K52.9	inclusion	Gastroenteritis NOS
+K52.9	inclusion	Ileitis NOS
+K52.9	inclusion	Jejunitis NOS
+K52.9	inclusion	Sigmoiditis NOS
+K55.1	title	Chronic vascular disorders of intestine
+K55.1	index	Abdomen, abdominal, angina
+K55.1	index	Angina, abdominal
+K55.1	index	Angina, intestinal
+K55.1	index	Angina, mesenteric
+K55.1	index	Arteriosclerosis, arteriosclerotic, mesenteric
+K55.1	index	Colitis, ischemic, chronic
+K55.1	index	Colitis, ischemic, due to mesenteric artery insufficiency
+K55.1	index	Disease, diseased, Wilkie's
+K55.1	index	Disorder, intestine, intestinal, vascular, chronic
+K55.1	index	Enteritis, ischemic, chronic
+K55.1	index	Enterocolitis, hemorrhagic, chronic
+K55.1	index	Insufficiency, insufficient, arterial, mesenteric
+K55.1	index	Insufficiency, insufficient, mesenteric
+K55.1	index	Insufficiency, insufficient, vascular, mesenteric
+K55.1	index	Ischemia, ischemic, bowel, chronic
+K55.1	index	Ischemia, ischemic, bowel, due to mesenteric artery insufficiency
+K55.1	index	Ischemia, ischemic, colon chronic
+K55.1	index	Ischemia, ischemic, intestine, chronic
+K55.1	index	Ischemia, ischemic, intestine, due to mesenteric artery insufficiency
+K55.1	index	Ischemia, ischemic, small bowel, chronic
+K55.1	index	Ischemia, ischemic, small bowel, due to mesenteric artery insufficiency
+K55.1	index	Stricture, intestine, ischemic
+K55.1	index	Syndrome, ischemic, bowel, chronic
+K55.1	index	Syndrome, ischemic, bowel, due to mesenteric artery insufficiency
+K55.1	index	Syndrome, mesenteric, artery
+K55.1	index	Syndrome, mesenteric, vascular insufficiency
+K55.1	index	Syndrome, superior, mesenteric artery
+K55.1	index	Syndrome, Wilkie's
+K55.1	index	Wilkie's disease or syndrome
+K55.1	inclusion	Chronic ischemic colitis
+K55.1	inclusion	Chronic ischemic enteritis
+K55.1	inclusion	Chronic ischemic enterocolitis
+K55.1	inclusion	Ischemic stricture of intestine
+K55.1	inclusion	Mesenteric atherosclerosis
+K55.1	inclusion	Mesenteric vascular insufficiency
+L03.116	title	Cellulitis of left lower limb
+N10	title	Acute pyelonephritis
+N10	index	Nephritis, nephritic, tubulo-interstitial, acute
+N10	index	Nephrosis, nephrotic, hemoglobin
+N10	index	Nephrosis, nephrotic, myoglobin
+N10	index	Pyelitis, acute
+N10	index	Pyelonephritis, acute
+N10	inclusion	Acute infectious interstitial nephritis
+N10	inclusion	Acute pyelitis
+N10	inclusion	Acute tubulo-interstitial nephritis
+N10	inclusion	Hemoglobin nephrosis
+N10	inclusion	Myoglobin nephrosis
+N30.00	title	Acute cystitis without hematuria
+N30.00	index	Cystitis, acute
+N39.0	title	Urinary tract infection, site not specified
+N39.0	index	Infection, infected, infective, urinary
+N39.0	index	Pus, in, urine
+N39.0	index	Urine, pus in
+Q87.19	title	Other congenital malformation syndromes predominantly associated with short stature
+Q87.19	index	Aarskog's syndrome
+Q87.19	index	Amsterdam dwarfism
+Q87.19	index	Bonnevie-Ullrich syndrome
+Q87.19	index	Bruck-de Lange disease
+Q87.19	index	Cockayne's syndrome
+Q87.19	index	Cornelia de Lange syndrome
+Q87.19	index	De Lange's syndrome
+Q87.19	index	Dubowitz' syndrome
+Q87.19	index	Noonan's syndrome
+Q87.19	index	Prader-Willi-like syndrome
+Q87.19	index	Robinow-Silverman-Smith syndrome
+Q87.19	index	Russell-Silver syndrome
+Q87.19	index	Seckel's syndrome
+Q87.19	index	Silver's syndrome
+Q87.19	index	Sjögren-Larsson syndrome
+Q87.19	index	Syndrome, Prader-Willi-like
+Q87.19	index	Syndrome, pseudo -Turner's
+Q87.19	index	Turner-like syndrome
+Q87.19	index	Ullrich syndrome
+Q87.19	index	Weil-Marchesani syndrome
+Q87.19	inclusion	Aarskog syndrome
+Q87.19	inclusion	Cockayne syndrome
+Q87.19	inclusion	De Lange syndrome
+Q87.19	inclusion	Dubowitz syndrome
+Q87.19	inclusion	Noonan syndrome
+Q87.19	inclusion	Seckel syndrome
+R10.0	title	Acute abdomen
+R10.0	index	Abdomen, abdominal, acute
+R10.0	index	Acute, abdomen
+R10.0	index	Crisis, abdomen
+R10.0	index	Pain, abdominal, generalized, with acute abdomen
+R10.0	index	Pain, abdominal, severe with abdominal rigidity
+R10.0	index	Rigid, rigidity, abdominal, with severe abdominal pain
+R10.0	index	Syndrome, abdominal, acute
+R10.0	index	Syndrome, acute abdominal
+R10.0	inclusion	Severe abdominal pain (generalized) (with abdominal rigidity)
+R50.9	title	Fever, unspecified
+R50.9	index	Chill, with fever
+R50.9	index	Elevated, elevation, body temperature
+R50.9	index	Fever
+R50.9	index	Fever, ephemeral
+R50.9	index	Fever, intermittent, of unknown origin
+R50.9	index	Fever, persistent
+R50.9	index	Fever, unknown origin
+R50.9	index	FUO
+R50.9	index	High, temperature
+R50.9	index	Hyperpyrexia
+R50.9	index	Hyperpyrexia, unknown origin
+R50.9	index	Inanition, fever
+R50.9	index	PUO
+R50.9	index	Pyrexia
+R50.9	index	Pyrexia, persistent
+R50.9	index	Rigors, with fever
+R50.9	index	Temperature, body, high
+R50.9	inclusion	Fever NOS
+R50.9	inclusion	Fever of unknown origin [FUO]
+R50.9	inclusion	Fever with chills
+R50.9	inclusion	Fever with rigors
+R50.9	inclusion	Hyperpyrexia NOS
+R50.9	inclusion	Persistent fever
+R50.9	inclusion	Pyrexia NOS
+R56.00	title	Simple febrile convulsions
+R56.00	index	Convulsions, febrile
+R56.00	index	Convulsions, febrile, simple
+R56.00	index	Seizure, febrile
+R56.00	inclusion	Febrile convulsion NOS
+R56.00	inclusion	Febrile seizure NOS
+R56.9	title	Unspecified convulsions
+R56.9	index	Convulsions
+R56.9	index	Convulsions, recurrent
+R56.9	index	Disorder, paroxysmal, mixed
+R56.9	index	Fit
+R56.9	index	Seizure
+R56.9	inclusion	Convulsion disorder
+R56.9	inclusion	Fit NOS
+R56.9	inclusion	Recurrent convulsions
+R56.9	inclusion	Seizure(s) (convulsive) NOS
+S72.001A	title	Fracture of unspecified part of neck of right femur, initial encounter for closed fracture
+T63.011A	title	Toxic effect of rattlesnake venom, accidental (unintentional), initial encounter

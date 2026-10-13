@@ -11,8 +11,13 @@ from fastapi.staticfiles import StaticFiles
 from . import auth, config, middleware, version
 from .routers import audit as audit_router
 from .routers import auth as auth_router
-from .routers import backups, matches, patients, records, users
+from .routers import backups, drafting, matches, patients, records, users
+from .routers import codes as codes_router
+from .routers import search as search_router
 from .services import backup, embeddings
+from .services import drafting as drafting_service
+from .services import codes as codes_service
+from .services import search as search_service
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -25,8 +30,14 @@ logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 async def lifespan(app: FastAPI):
     config.ensure_dirs()
     auth.warn_if_insecure_config()
+    drafting_service.warn_if_misconfigured()
     # Embed any records saved while the model was unavailable.
     embeddings.start_backfill_thread()
+    # Keyword index is derived data: create it and catch up on any change
+    # made outside the API (seed scripts, restores).
+    search_service.sync_at_startup()
+    # ICD-10-CM phrase vectors: loaded from cache, or built once in the background.
+    codes_service.start_build_thread()
     # Daily encrypted backup while the app runs.
     backup.start_backup_scheduler()
     # Drop sessions that can never authenticate again.
@@ -55,6 +66,9 @@ app.include_router(audit_router.router)
 app.include_router(patients.router)
 app.include_router(records.router)
 app.include_router(matches.router)
+app.include_router(drafting.router)
+app.include_router(search_router.router)
+app.include_router(codes_router.router)
 app.include_router(backups.router)
 
 PUBLIC_API_PATHS = frozenset({"/api/health", "/api/auth/login", "/api/clinic"})

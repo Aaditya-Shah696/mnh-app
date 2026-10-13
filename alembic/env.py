@@ -18,6 +18,14 @@ config.set_main_option("sqlalchemy.url", app_config.DATABASE_URL)
 target_metadata = Base.metadata
 
 
+def include_object(obj, name, type_, reflected, compare_to):
+    """The FTS5 keyword index (record_search and its shadow tables) is
+    derived data the app creates at startup, not part of the schema."""
+    if type_ == "table" and name and name.startswith("record_search"):
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -26,6 +34,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         render_as_batch=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -42,6 +51,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             render_as_batch=True,  # SQLite cannot ALTER most things in place
+            include_object=include_object,
         )
         with context.begin_transaction():
             context.run_migrations()

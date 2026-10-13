@@ -115,7 +115,7 @@ def test_audit_row_is_in_same_transaction_as_change(client, patient, monkeypatch
     def boom(*args, **kwargs):
         raise RuntimeError("embedding exploded")
 
-    monkeypatch.setattr(records_router.embeddings, "refresh_record_embedding", boom)
+    monkeypatch.setattr(records_router.embeddings, "refresh_record_vectors", boom)
     before = _count(client, action="record.create")
     with pytest.raises(RuntimeError):
         client.post("/api/records", json=make_record_payload(patient["id"]))

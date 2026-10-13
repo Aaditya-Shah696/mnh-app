@@ -9,6 +9,7 @@ numpy>=1.26,<2.3   # 2.3+ wheels need x86-64-v2; the Namecheap KVM CPU (QEMU 2.5
 reportlab>=4.2
 pyzipper>=0.3.6
 argon2-cffi>=23.1
+anthropic>=1.0           # optional AI drafting (off unless DISCHARGE_LLM_ENABLED=1)
 pytest>=8.0
 httpx>=0.27
 pypdf>=5.0
